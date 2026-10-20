@@ -1,18 +1,18 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "vendor-name/skeleton",
-    "description": "A Laravel package skeleton.",
+    "name": "korioinc/laravel-schema-align",
+    "description": "Laravel Schema Align",
     "keywords": [
-        "vendor-name",
         "laravel",
-        "skeleton"
+        "korioinc",
+        "laravel-schema-align"
     ],
-    "homepage": "https://github.com/vendor-name/skeleton",
+    "homepage": "https://github.com/korioinc/laravel-schema-align",
     "license": "MIT",
     "authors": [
         {
-            "name": "Author Name",
-            "email": "author@example.com",
+            "name": "korinc",
+            "email": "dev@kor.io",
             "role": "Developer"
         }
     ],
@@ -22,10 +22,7 @@
     },
     "require-dev": {
         "larastan/larastan": "^3.9",
-        "laravel/agent-detector": "^2.0",
-        "laravel/chisel": "^0.1",
         "laravel/pint": "^1.29",
-        "laravel/prompts": "^0.3",
         "laravel/pao": "^1.0",
         "orchestra/testbench": "^10.0||^11.0",
         "pestphp/pest": "^4.6||^5.0",
@@ -35,24 +32,18 @@
     },
     "autoload": {
         "psr-4": {
-            "VendorName\\Skeleton\\": "src/"
+            "Korioinc\\SchemaAlign\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "VendorName\\Skeleton\\Tests\\": "tests/",
+            "Korioinc\\SchemaAlign\\Tests\\": "tests/",
             "Workbench\\App\\": "workbench/app/",
             "Workbench\\Database\\Factories\\": "workbench/database/factories/",
             "Workbench\\Database\\Seeders\\": "workbench/database/seeders/"
         }
     },
     "scripts": {
-        "post-install-cmd": [
-            "@php configure.php"
-        ],
-        "post-update-cmd": [
-            "@php configure.php"
-        ],
         "post-autoload-dump": [
             "@clear",
             "@prepare"
@@ -96,11 +87,8 @@
     "extra": {
         "laravel": {
             "providers": [
-                "VendorName\\Skeleton\\SkeletonServiceProvider"
-            ],
-            "aliases": {
-                "Skeleton": "VendorName\\Skeleton\\Facades\\Skeleton"
-            }
+                "Korioinc\\SchemaAlign\\SchemaAlignServiceProvider"
+            ]
         }
     },
     "config": {
