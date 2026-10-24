@@ -1,6 +1,6 @@
 ---
 name: package-testing
-description: "Use this skill when writing, editing, fixing, or reviewing package tests with Pest 4/5 and Orchestra Testbench, including TDD, feature tests, unit tests, type coverage, arch tests, workbench behavior, commands, routes, config, migrations, and publishable resources."
+description: "Use this skill when writing, editing, fixing, or reviewing package tests with Pest 4/5 and Orchestra Testbench, including TDD, feature tests, unit tests, type coverage, arch tests, commands, routes, config, migrations, and publishable resources."
 license: MIT
 metadata:
   author: laravel
@@ -33,7 +33,7 @@ Prove package behavior with Pest 4/5, Orchestra Testbench, and the local `tests/
 
 - Test config merge and config override by asserting default package config, then overriding the host config value in the Testbench app.
 - Test publishable assets, migrations, views, lang files, or config by invoking vendor publish behavior and asserting the target path exists.
-- Test routes with Testbench HTTP requests, commands with Artisan assertions, migrations with a SQLite test database, and workbench behavior after `composer build` when needed.
+- Test routes with Testbench HTTP requests, commands with Artisan assertions, and migrations with a SQLite test database. For manual integration checks, install the checkout into a separate Laravel application through a Composer path repository as documented in `README.md`.
 
 ## Anti-Patterns
 

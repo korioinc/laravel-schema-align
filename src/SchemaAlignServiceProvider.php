@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Korioinc\SchemaAlign;
 
 use Illuminate\Support\ServiceProvider;
-use Korioinc\SchemaAlign\Console\Commands\SchemaAlignCommand;
+use Korioinc\SchemaAlign\Console\Commands\ApplyCommand;
+use Korioinc\SchemaAlign\Console\Commands\CleanupCommand;
+use Korioinc\SchemaAlign\Console\Commands\DiffCommand;
+use Korioinc\SchemaAlign\Console\Commands\PlanCommand;
 
 class SchemaAlignServiceProvider extends ServiceProvider
 {
@@ -14,7 +17,7 @@ class SchemaAlignServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__.'/../config/laravel-schema-align.php', 'laravel-schema-align');
+        $this->mergeConfigFrom(__DIR__.'/../config/schema-align.php', 'schema-align');
 
         $this->app->singleton(SchemaAlign::class);
     }
@@ -29,15 +32,14 @@ class SchemaAlignServiceProvider extends ServiceProvider
         }
 
         $this->publishes([
-            __DIR__.'/../config/laravel-schema-align.php' => config_path('laravel-schema-align.php'),
+            __DIR__.'/../config/schema-align.php' => config_path('schema-align.php'),
         ], ['laravel-schema-align', 'laravel-schema-align-config']);
 
-        $this->publishesMigrations([
-            __DIR__.'/../database/migrations' => database_path('migrations'),
-        ], ['laravel-schema-align', 'laravel-schema-align-migrations']);
-
         $this->commands([
-            SchemaAlignCommand::class,
+            DiffCommand::class,
+            PlanCommand::class,
+            ApplyCommand::class,
+            CleanupCommand::class,
         ]);
     }
 }

@@ -26,6 +26,8 @@ Clone your fork, then install the dev dependencies:
 composer install
 ```
 
+For manual development, install this checkout into a separate Laravel application using a Composer path repository with symlinking enabled. Follow the [local development workflow](../README.md#local-development-in-a-consuming-application). Run application Artisan commands in that application and package checks in this checkout.
+
 ## Lint
 
 Lint your code:

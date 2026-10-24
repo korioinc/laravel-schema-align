@@ -26,7 +26,6 @@ Keep package code, dependencies, and workflows compatible with the supported Lar
 - `.github/workflows/tests.yml`
 - `phpstan.neon.dist`
 - `tests/`
-- `workbench/`
 
 ## Examples
 

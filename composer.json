@@ -18,7 +18,10 @@
     ],
     "require": {
         "php": "^8.3",
-        "illuminate/support": "^12.0||^13.0"
+        "illuminate/console": "^12.0||^13.0",
+        "illuminate/database": "^12.0||^13.0",
+        "illuminate/support": "^12.0||^13.0",
+        "symfony/process": "^7.2||^8.0"
     },
     "require-dev": {
         "larastan/larastan": "^3.9",
@@ -37,10 +40,7 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Korioinc\\SchemaAlign\\Tests\\": "tests/",
-            "Workbench\\App\\": "workbench/app/",
-            "Workbench\\Database\\Factories\\": "workbench/database/factories/",
-            "Workbench\\Database\\Seeders\\": "workbench/database/seeders/"
+            "Korioinc\\SchemaAlign\\Tests\\": "tests/"
         }
     },
     "scripts": {
@@ -50,14 +50,6 @@
         ],
         "prepare": [
             "@php vendor/bin/testbench package:discover --ansi"
-        ],
-        "build": [
-            "@php vendor/bin/testbench workbench:build --ansi"
-        ],
-        "serve": [
-            "Composer\\Config::disableProcessTimeout",
-            "@build",
-            "@php vendor/bin/testbench serve --ansi"
         ],
         "lint": [
             "vendor/bin/pint --parallel"
@@ -69,7 +61,7 @@
             "vendor/bin/phpstan analyse"
         ],
         "test:types": [
-            "vendor/bin/pest --type-coverage --min=100"
+            "@php -d memory_limit=512M vendor/bin/pest --type-coverage --min=100"
         ],
         "test:unit": [
             "vendor/bin/pest --parallel"

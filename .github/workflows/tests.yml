@@ -6,12 +6,19 @@ on:
       - main
       - '*.x'
   pull_request:
+  workflow_call:
+    inputs:
+      ref:
+        description: Immutable commit SHA to test
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Release calls use their verified commit; ordinary push/PR behavior remains ref-scoped.
+  group: ${{ github.workflow }}-${{ inputs.ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -36,6 +43,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
 
       - name: Setup PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
@@ -69,3 +79,113 @@ jobs:
       - name: Test Suite (Windows)
         if: runner.os == 'Windows'
         run: vendor/bin/pest
+
+  database-integration:
+    name: Database integration - P8.5 - L13 - stable
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:18.2
+        env:
+          POSTGRES_DB: schema-align-tests
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-postgres-admin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready --username=postgres --dbname=schema-align-tests"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      mysql:
+        image: mysql:8.4.11
+        env:
+          MYSQL_DATABASE: schema-align-tests
+          MYSQL_ROOT_PASSWORD: ci-mysql-admin
+          MYSQL_ROOT_HOST: '%'
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --host=127.0.0.1 --user=root --password=ci-mysql-admin"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    # Disposable service credentials only; never use repository or production secrets.
+    env:
+      SCHEMA_ALIGN_TEST_DSN: 'pgsql:host=127.0.0.1;port=5432;dbname=schema-align-tests'
+      SCHEMA_ALIGN_TEST_USER: schema_align_test
+      SCHEMA_ALIGN_TEST_PASSWORD: ci-postgres-test
+      SCHEMA_ALIGN_SUPERUSER_TESTS: '1'
+      SCHEMA_ALIGN_TEST_ADMIN_USER: postgres
+      SCHEMA_ALIGN_TEST_ADMIN_PASSWORD: ci-postgres-admin
+      SCHEMA_ALIGN_AUTO_REPLAY_TESTS: '1'
+      SCHEMA_ALIGN_PATH_PACKAGE_TESTS: '1'
+      SCHEMA_ALIGN_MYSQL_DSN: 'mysql:host=127.0.0.1;port=3306;dbname=schema-align-tests'
+      SCHEMA_ALIGN_MYSQL_USER: schema_align_test
+      SCHEMA_ALIGN_MYSQL_PASSWORD: ci-mysql-test
+      SCHEMA_ALIGN_MYSQL_APP_TESTS: '1'
+      SCHEMA_ALIGN_NAMESPACE_MYSQL_ADMIN_TESTS: '1'
+      SCHEMA_ALIGN_MYSQL_ADMIN_USER: root
+      SCHEMA_ALIGN_MYSQL_ADMIN_PASSWORD: ci-mysql-admin
+      SCHEMA_ALIGN_MYSQL_FIXTURE_ADMIN_PASSWORD: ci-mysql-admin
+
+    # Release calls pin both jobs to the same verified tag commit.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.5'
+          extensions: dom, curl, libxml, mbstring, zip, fileinfo, sqlite, pdo_sqlite, pdo_pgsql, pdo_mysql, bcmath, intl
+          ini-values: error_reporting=E_ALL
+          tools: composer:v2
+          coverage: none
+
+      - name: Install stable Laravel 13 dependencies
+        run: |
+          composer require "laravel/framework:13.*" "orchestra/testbench:11.*" --no-interaction --no-update
+          composer install --prefer-dist --no-interaction --no-progress --no-scripts
+          composer run prepare
+
+      - name: Provision restricted disposable database accounts
+        shell: bash
+        run: |
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+
+          $options = [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION];
+          $postgres = new PDO(
+              getenv('SCHEMA_ALIGN_TEST_DSN'),
+              getenv('SCHEMA_ALIGN_TEST_ADMIN_USER'),
+              getenv('SCHEMA_ALIGN_TEST_ADMIN_PASSWORD'),
+              $options,
+          );
+          $postgres->exec('CREATE ROLE schema_align_test LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '
+              .$postgres->quote(getenv('SCHEMA_ALIGN_TEST_PASSWORD')));
+          $postgres->exec('GRANT CONNECT, CREATE ON DATABASE "schema-align-tests" TO schema_align_test');
+          $postgres->exec('GRANT USAGE, CREATE ON SCHEMA public TO schema_align_test');
+
+          $mysql = new PDO(
+              getenv('SCHEMA_ALIGN_MYSQL_DSN'),
+              getenv('SCHEMA_ALIGN_MYSQL_ADMIN_USER'),
+              getenv('SCHEMA_ALIGN_MYSQL_ADMIN_PASSWORD'),
+              $options,
+          );
+          $mysql->exec("CREATE USER 'schema_align_test'@'%' IDENTIFIED BY "
+              .$mysql->quote(getenv('SCHEMA_ALIGN_MYSQL_PASSWORD')));
+          $mysql->exec("GRANT ALL PRIVILEGES ON `schema-align-tests`.* TO 'schema_align_test'@'%'");
+          $mysql->exec("GRANT ALL PRIVILEGES ON `align-%`.* TO 'schema_align_test'@'%'");
+          $mysql->exec("GRANT SELECT, SHOW VIEW, PROCESS, SHOW DATABASES, SHOW_ROUTINE ON *.* TO 'schema_align_test'@'%'");
+          PHP
+
+      - name: Test Suite with real databases (no omissions)
+        run: vendor/bin/pest --parallel --fail-on-skipped --fail-on-empty-test-suite --fail-on-incomplete

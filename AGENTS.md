@@ -9,6 +9,7 @@ This repository is a Laravel package. Keep the package focused, idiomatic, and e
 - Add only the files and dependencies needed for the package behavior being implemented.
 - Prefer explicit Laravel package code over helper abstractions unless the extension point is real.
 - Keep tests focused on observable package behavior through public APIs, service provider wiring, commands, routes, published resources, and documentation promises.
+- Develop manually in a separate Laravel application that installs this checkout through a Composer path repository. Keep the package checkout focused on package source and automated tests.
 
 ## Quick Commands
 
@@ -16,12 +17,11 @@ This repository is a Laravel package. Keep the package focused, idiomatic, and e
 - Formatting check: `composer lint:check`
 - Static analysis: `composer analyse`
 - Pest tests: `composer test:unit`
-- Workbench build: `composer build`
-- Workbench server: `composer serve`
+- Local application setup: see the consuming-application workflow in `README.md`.
 
 ## Local Skills
 
-- `package-scaffold`: use when adding package capabilities or wiring them through the service provider, including commands, migrations, routes, config, views, translations, assets, middleware, publish tags, workbench files, and console-only behavior.
+- `package-scaffold`: use when adding package capabilities or wiring them through the service provider, including commands, migrations, routes, config, views, translations, assets, middleware, publish tags, and console-only behavior.
 - `package-testing`: use when adding or changing package tests with Pest 4/5 and Orchestra Testbench.
 - `package-release`: use when preparing changelog, release notes, tags, or GitHub release workflow changes.
 - `package-compatibility`: use when reviewing code, dependencies, or CI against the PHP and Laravel support matrix.

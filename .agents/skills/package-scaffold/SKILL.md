@@ -1,6 +1,6 @@
 ---
 name: package-scaffold
-description: "Use this skill when adding Laravel package capabilities or wiring them through the service provider: commands, migrations, routes, config merges, views, translations, assets, middleware, publish tags, workbench files, or console-only behavior."
+description: "Use this skill when adding Laravel package capabilities or wiring them through the service provider: commands, migrations, routes, config merges, views, translations, assets, middleware, publish tags, or console-only behavior."
 license: MIT
 metadata:
   author: laravel
