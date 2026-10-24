@@ -69,7 +69,7 @@ if ($env:SCHEMA_ALIGN_TEST_ACCESS -eq 'shared') {
     $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($everyone, 'ReadAndExecute', 'ContainerInherit,ObjectInherit', 'None', 'Allow')))
 }
 Set-Acl -LiteralPath $env:SCHEMA_ALIGN_TEST_DIRECTORY -AclObject $acl
-POWERSHELL], env: ['SCHEMA_ALIGN_TEST_DIRECTORY' => $this->workspaceDirectory, 'SCHEMA_ALIGN_TEST_ACCESS' => $access]))->mustRun();
+POWERSHELL], env: ['PSModulePath' => false, 'SCHEMA_ALIGN_TEST_DIRECTORY' => $this->workspaceDirectory, 'SCHEMA_ALIGN_TEST_ACCESS' => $access]))->mustRun();
         $refuse = $access !== 'private';
         $process = workspaceWithWindowsPrivacy($this->workspaceDirectory, $refuse);
 
@@ -90,7 +90,7 @@ if ($rules.Count -eq 0) { throw 'Private file has no verifiable access rules' }
 foreach ($rule in $rules) {
     if ($rule.IdentityReference.Value -ne $me) { throw 'Worker descendant permits another principal' }
 }
-POWERSHELL], env: ['SCHEMA_ALIGN_TEST_FILE' => $root.'/cache/private.php']);
+POWERSHELL], env: ['PSModulePath' => false, 'SCHEMA_ALIGN_TEST_FILE' => $root.'/cache/private.php']);
 
         expect(fn () => $verification->mustRun())->not->toThrow(Throwable::class);
     })->with(['private', 'shared', 'directories-only', 'one-generation']);

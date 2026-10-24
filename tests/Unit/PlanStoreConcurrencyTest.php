@@ -20,7 +20,7 @@ $acl.SetAccessRuleProtection($true, $false)
 $rule = New-Object System.Security.AccessControl.FileSystemAccessRule($identity, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
 $acl.AddAccessRule($rule)
 Set-Acl -LiteralPath $env:SCHEMA_ALIGN_PLAN_DIRECTORY -AclObject $acl
-POWERSHELL], env: ['SCHEMA_ALIGN_PLAN_DIRECTORY' => $directory]))->mustRun();
+POWERSHELL], env: ['PSModulePath' => false, 'SCHEMA_ALIGN_PLAN_DIRECTORY' => $directory]))->mustRun();
     }
 });
 

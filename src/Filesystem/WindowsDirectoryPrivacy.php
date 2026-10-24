@@ -41,6 +41,8 @@ foreach ($item in $items) {
 }
 POWERSHELL;
         $process = new Process(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', $script], null, [
+            // Windows PowerShell must not inherit PowerShell 7 module paths through PHP.
+            'PSModulePath' => false,
             'SCHEMA_ALIGN_PRIVATE_DIRECTORY' => $directory,
             'SCHEMA_ALIGN_REQUIRE_INHERITANCE' => $inheritanceRequired ? '1' : '0',
         ], null, 15);
