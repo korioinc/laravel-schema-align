@@ -80,7 +80,7 @@ final class ReplayBlueprint extends Blueprint
     /** @param string $type
      * @param  array<string>  $columns
      */
-    protected function createIndexName($type, array $columns): string
+    protected function createIndexName(mixed $type, array $columns): string
     {
         $physical = $this->table;
         $mapping = $this->connection->getConfig('schema_align_schema_map') ?? [];

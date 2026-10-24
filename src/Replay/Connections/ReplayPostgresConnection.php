@@ -23,7 +23,7 @@ final class ReplayPostgresConnection extends PostgresConnection
     }
 
     /** @param PDO|Closure|null $pdo */
-    public function setPdo($pdo): static
+    public function setPdo(mixed $pdo): static
     {
         if ($pdo !== null && $pdo !== $this->pdo) {
             throw new RuntimeException('Replacing a registered replay PDO is unsupported.');
@@ -34,7 +34,7 @@ final class ReplayPostgresConnection extends PostgresConnection
     }
 
     /** @param PDO|Closure|null $pdo */
-    public function setReadPdo($pdo): static
+    public function setReadPdo(mixed $pdo): static
     {
         if ($pdo !== null && $pdo !== $this->pdo) {
             throw new RuntimeException('Unregistered replay read sessions are unsupported.');
@@ -45,7 +45,7 @@ final class ReplayPostgresConnection extends PostgresConnection
     }
 
     /** @param PDO|Closure|null $pdo */
-    public function setDirectPdo($pdo): static
+    public function setDirectPdo(mixed $pdo): static
     {
         if ($pdo !== null) {
             throw new RuntimeException('Unregistered replay direct sessions are unsupported.');

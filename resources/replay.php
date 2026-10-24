@@ -202,7 +202,7 @@ try {
 
         return $value;
     };
-    // A real private cache also prevents mergeConfigFrom from repeating numeric-list merges on Laravel 12.
+    // A private config cache preserves the captured application configuration without repeating package config merges.
     $configCache = '<?php return '.var_export($relocate($input['application_config']), true).';';
     $configPath = $app->getCachedConfigPath();
     foreach (['Config', 'Services', 'Packages', 'Routes', 'Events'] as $cache) {

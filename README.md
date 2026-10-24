@@ -2,7 +2,7 @@
 
 Compare a consuming Laravel application's database schema with its complete current migration source. Review and explicitly approve selected safe SQL without resetting original tables or copying row data.
 
-PHP **8.3+**, Laravel **12/13**, PostgreSQL **18+**, genuine MySQL **8.0.20+ (8.0 series) / 8.4**. MariaDB and Percona are unsupported. Runtime requires PHP CLI, the matching PDO extension, process execution, private temporary storage and access to the configured database server. **Docker, database clients and server binaries are not runtime requirements.** No web UI is included.
+PHP **8.4+**, Laravel **13**, PostgreSQL **18+**, genuine MySQL **8.0.20+ (8.0 series) / 8.4**. MariaDB and Percona are unsupported. Runtime requires PHP CLI, the matching PDO extension, process execution, private temporary storage and access to the configured database server. **Docker, database clients and server binaries are not runtime requirements.** No web UI is included.
 
 ## Install
 
@@ -269,7 +269,7 @@ These are package checkout commands, not installed application Artisan aliases. 
 
 Missing integration credentials produce skips, not proof. The `Database integration - P8.5 - L13 - stable` CI job provisions disposable PostgreSQL 18.2 and MySQL 8.4.11 services, enables all database scenarios and fails on skipped, incomplete or empty tests. The existing PHP/Laravel/Windows dependency matrix remains separate. Repository branch protection must require this job if merges must wait for it.
 
-Local verification does not establish actual Kubernetes permissions, managed-service limits or the full PHP 8.3/8.4/8.5, Laravel 12/13 and Windows database runtime matrix. Test infrastructure may use local containers, independently of the Docker-free package runtime. See [`tests/Fixtures/replay/README.md`](tests/Fixtures/replay/README.md).
+Local verification does not establish actual Kubernetes permissions, managed-service limits or the full PHP 8.4/8.5, Laravel 13 and Windows database runtime matrix. Test infrastructure may use local containers, independently of the Docker-free package runtime. See [`tests/Fixtures/replay/README.md`](tests/Fixtures/replay/README.md).
 
 ### Source organization
 
