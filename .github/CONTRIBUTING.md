@@ -43,3 +43,17 @@ Run all tests:
 ```bash
 composer test
 ```
+
+## Releases
+
+Use stable `MAJOR.MINOR.PATCH` tags without a `v` prefix, such as `1.0.1`.
+This matches `korioinc/laravel-expo-integrity`. The Release workflow rejects prefixed tags.
+
+1. Verify that CI passes for the intended commit on the default branch.
+2. Create and push the approved release tag for that commit.
+3. Run **Actions → Release → Run workflow** on the default branch with the existing tag.
+4. Confirm that the workflow checks, GitHub release, and Packagist version all match the tagged commit.
+
+The workflow does not create tags. It verifies the tag's commit and refuses publication if the tag changes during validation.
+Packagist imports versions from pushed tags, so CI must pass before the tag is pushed.
+The changelog updater skips an existing version heading to keep retries idempotent.

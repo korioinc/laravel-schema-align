@@ -1,10 +1,15 @@
 # Release Notes
 
-## [Unreleased](https://github.com/korioinc/laravel-schema-align/compare/v1.0.0...main)
+## [Unreleased](https://github.com/korioinc/laravel-schema-align/compare/1.0.1...main)
 
-## [v1.0.0](https://github.com/korioinc/laravel-schema-align/releases/tag/v1.0.0) - 2026-10-24
+## [1.0.1](https://github.com/korioinc/laravel-schema-align/releases/tag/1.0.1) - 2026-10-24
 
-Initial stable release of Laravel Schema Align.
+Replacement for the withdrawn initial release. Runtime behavior and dependency requirements are unchanged.
+
+### Changed
+
+- Publish the package with the unprefixed `1.0.1` tag.
+- Require stable `MAJOR.MINOR.PATCH` tags without a `v` prefix in release automation and contributor instructions.
 
 ### Features
 
