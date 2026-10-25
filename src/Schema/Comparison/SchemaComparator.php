@@ -82,6 +82,8 @@ final class SchemaComparator
             $new = $before === null;
             $dependencies = $new ? [$newTables[$table]['id']] : [];
             $tableSafe = ! $new || $newTables[$table]['automatic'];
+            $typeEffects = [];
+            $removedConstraints = [];
 
             if (! $new) {
                 $missing = array_diff_key($after['columns'], $before['columns']);
@@ -100,12 +102,37 @@ final class SchemaComparator
                     }
 
                     if ($column === null) {
-                        $reason = $this->columnRemovalReason($actual, $table, $name);
-                        $result['differences'][] = $this->operation($reason === null ? 'drop_column' : 'extra_column', $table, $name, $old, null,
+                        $reason = array_filter($missing, fn (array $value): bool => ! $value['nullable']) !== []
+                            ? 'Missing required columns and extra columns require manual mapping before removal.'
+                            : $this->columnRemovalReason($actual, $table, $name);
+                        $removal = $this->operation($reason === null ? 'drop_column' : 'extra_column', $table, $name, $old, null,
                             $reason === null ? ['ALTER TABLE '.$this->qualified($before).' DROP COLUMN '.$this->quote($name).' RESTRICT'] : [],
                             $reason ?? 'Column removal deletes stored values and requires --allow-drop-columns at apply.');
 
+                        if ($reason === null) {
+                            foreach ($before['constraints'] as $constraintName => $constraint) {
+                                if ($constraint['kind'] === 'n' && $constraint['columns'] === [$name]) {
+                                    $removedConstraints[$constraintName] = true;
+                                    $removal['effects'][] = ['collection' => 'constraints', 'name' => (string) $constraintName, 'before' => $constraint, 'after' => null];
+                                }
+                            }
+                        }
+                        $result['differences'][] = $this->bindEffects($removal);
+
                         continue;
+                    }
+
+                    if ($old !== null) {
+                        $change = $this->columnTypeChange($desired, $actual, $table, $name);
+
+                        if ($change !== null) {
+                            $result['differences'][] = $change;
+                            foreach ($change['effects'] ?? [] as $effect) {
+                                $typeEffects[$effect['collection']][$effect['name']] = $effect['after'];
+                            }
+
+                            continue;
+                        }
                     }
                     $safe = $old === null && $column['nullable'] && $this->plainColumn($column);
                     $kind = $old === null ? 'add_column' : 'change_column';
@@ -117,6 +144,11 @@ final class SchemaComparator
             foreach (['constraints', 'indexes'] as $collection) {
                 $wanted = $after[$collection];
                 $existing = $before[$collection] ?? ($collection === 'constraints' ? $newTables[$table]['after']['constraints'] : []);
+                $existing = array_replace($existing, $typeEffects[$collection] ?? []);
+
+                if ($collection === 'constraints') {
+                    $existing = array_diff_key($existing, $removedConstraints);
+                }
                 $singular = $collection === 'indexes' ? 'index' : 'constraint';
                 // Same-name objects are compared before semantic rename candidates.
                 foreach (array_intersect_key($wanted, $existing) as $name => $object) {
@@ -421,11 +453,164 @@ final class SchemaComparator
             'sql' => $sql, 'automatic' => $sql !== [] && $kind !== 'drop_column', 'reason' => $reason, 'transactional' => true, 'dependencies' => $dependencies];
     }
 
+    /** @param OperationDefinition $operation
+     * @return OperationDefinition
+     */
+    private function bindEffects(array $operation): array
+    {
+        if (($operation['effects'] ?? []) !== []) {
+            $operation['id'] = substr(hash('sha256', $operation['id'].Snapshot::canonical($operation['effects'])), 0, 24);
+        }
+
+        return $operation;
+    }
+
+    /** @return OperationDefinition|null */
+    private function columnTypeChange(Snapshot $desired, Snapshot $actual, string $table, string $name): ?array
+    {
+        $before = $actual->tables[$table];
+        $after = $desired->tables[$table];
+        $old = $before['columns'][$name];
+        $column = $after['columns'][$name];
+
+        if (! $this->plainColumn($old) || ! $this->plainColumn($column)
+            || $this->canonical([...$old, 'type' => $column['type']]) !== $this->canonical($column)
+            || ($before['drop_column_blockers'] ?? []) !== []) {
+            return null;
+        }
+        $character = preg_match('/\Acharacter\(([1-9][0-9]*)\)\z/D', $old['type'], $from)
+            && preg_match('/\Acharacter varying\(([1-9][0-9]*)\)\z/D', $column['type'], $to)
+            && (int) $to[1] >= (int) $from[1];
+        $timestamp = preg_match('/\Atimestamp\(([0-6])\) without time zone\z/D', $old['type'], $from)
+            && preg_match('/\Atimestamp\(([0-6])\) without time zone\z/D', $column['type'], $to)
+            && (int) $to[1] > (int) $from[1];
+
+        if (! $character && ! $timestamp) {
+            return null;
+        }
+        foreach ($before['columns'] as $value) {
+            if (($value['generated'] ?? '') !== '') {
+                return null;
+            }
+        }
+        foreach ($actual->tables as $other) {
+            foreach ($other['constraints'] as $constraint) {
+                if ($constraint['kind'] === 'f'
+                    && (($other['schema'] === $before['schema'] && $other['name'] === $before['name'] && in_array($name, $constraint['columns'], true))
+                        || (($constraint['foreign_schema'] ?? null) === $before['schema'] && ($constraint['foreign_table'] ?? null) === $before['name']
+                            && in_array($name, $constraint['foreign_columns'] ?? [], true)))) {
+                    return null;
+                }
+            }
+        }
+        $effects = [];
+        foreach (['constraints', 'indexes'] as $collection) {
+            foreach ($before[$collection] as $objectName => $object) {
+                if ($collection === 'constraints') {
+                    if ($object['kind'] === 'c') {
+                        return null;
+                    }
+
+                    if (! in_array($name, $object['columns'], true)) {
+                        continue;
+                    }
+
+                    if ($object['kind'] === 'n') {
+                        continue;
+                    }
+
+                    if (! in_array($object['kind'], ['p', 'u'], true) || ! isset($object['index'])) {
+                        return null;
+                    }
+                    $index = $object['index'];
+                } else {
+                    $index = $object;
+                }
+
+                if (($index['method'] ?? '') !== 'btree' || ($index['predicate'] ?? null) !== null || ($index['include'] ?? []) !== []) {
+                    return null;
+                }
+                $affected = false;
+                foreach ($index['keys'] as &$key) {
+                    if (($key['column'] ?? null) === null) {
+                        return null;
+                    }
+
+                    if ($key['column'] !== $name) {
+                        continue;
+                    }
+                    $affected = true;
+
+                    if ($character) {
+                        if ($key['opclass'] !== 'pg_catalog.bpchar_ops') {
+                            return null;
+                        }
+                        $key['opclass'] = 'pg_catalog.text_ops';
+                    }
+                }
+                unset($key);
+
+                if (! $affected) {
+                    continue;
+                }
+                $expected = $object;
+
+                if ($collection === 'constraints') {
+                    $expected['index'] = $index;
+                } else {
+                    $expected = $index;
+                }
+                unset($expected['signature']);
+                $semantic = $expected;
+                unset($semantic['backing_index'], $semantic['definition']);
+
+                if ($collection === 'constraints') {
+                    $semantic['definition'] = $expected['definition'];
+                }
+                $expected['signature'] = Snapshot::canonical($semantic);
+                $wanted = $after[$collection][$objectName] ?? null;
+
+                if ($wanted === null || $this->canonical($expected) !== $this->canonical($wanted)) {
+                    return null;
+                }
+
+                if ($this->canonical($object) !== $this->canonical($wanted)) {
+                    $effects[] = ['collection' => $collection, 'name' => (string) $objectName, 'before' => $object, 'after' => $wanted];
+                }
+            }
+        }
+        $sql = [];
+        $qualified = $this->qualified($before);
+        $quoted = $this->quote($name);
+
+        if ($character) {
+            // char-to-text casts trim padding. Refuse data changes under the executor's table locks.
+            $sql[] = 'SELECT 1 / (NOT EXISTS (SELECT 1 FROM '.$qualified.' WHERE octet_length('.$quoted.') <> octet_length('.$quoted.'::text)))::integer';
+        }
+        $sql[] = 'ALTER TABLE '.$qualified.' ALTER COLUMN '.$quoted.' TYPE '.$column['type'];
+        $operation = $this->operation('change_column', $table, $name, $old, $column, $sql,
+            $character ? 'Character conversion changes comparison semantics; padded values are rejected before conversion.' : null);
+
+        if ($effects !== []) {
+            $operation['effects'] = $effects;
+        }
+
+        return $this->bindEffects($operation);
+    }
+
     private function columnRemovalReason(Snapshot $actual, string $table, string $name): ?string
     {
         $before = $actual->tables[$table];
 
-        if (! $this->plainColumn($before['columns'][$name])) {
+        $column = $before['columns'][$name];
+        $default = $column['default'] ?? null;
+
+        if ($default !== null && in_array($column['type'], ['smallint', 'integer', 'bigint'], true)
+            && preg_match('/\A(?:-?[0-9]+|\'-?[0-9]+\'::(?:smallint|integer|bigint))\z/D', $default)) {
+            $column['default'] = null;
+        }
+
+        if (! $this->plainColumn($column)) {
             return 'Column removal with defaults, identity, generated expressions or special types requires manual review.';
         }
 
@@ -439,6 +624,11 @@ final class SchemaComparator
         }
         $indexes = array_values($before['indexes']);
         foreach ($before['constraints'] as $constraint) {
+            if ($constraint['kind'] === 'n' && $constraint['columns'] === [$name]
+                && ($constraint['validated'] ?? false) && ! ($constraint['no_inherit'] ?? false)) {
+                continue;
+            }
+
             if (in_array($name, $constraint['columns'], true)) {
                 return 'Column removal affects a constraint and requires manual review.';
             }
