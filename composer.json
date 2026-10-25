@@ -62,7 +62,8 @@
             "vendor/bin/phpstan analyse"
         ],
         "test:types": [
-            "@php -d memory_limit=512M vendor/bin/pest --type-coverage --min=100"
+            "@putenv __PEST_PLUGIN_ENV=schema-align-types",
+            "@php -d variables_order=EGPCS -d memory_limit=512M vendor/bin/pest --type-coverage --min=100"
         ],
         "test:unit": [
             "vendor/bin/pest --parallel"
