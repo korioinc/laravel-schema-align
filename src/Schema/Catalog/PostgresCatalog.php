@@ -499,12 +499,14 @@ SELECT n.nspname||'.'||c.relname AS object, 'sequence' AS reason, to_jsonb(s) - 
 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace JOIN pg_sequence s ON s.seqrelid = c.oid
 WHERE __SCOPE__ AND (NOT EXISTS (SELECT 1 FROM pg_depend d JOIN pg_attribute a ON a.attrelid = d.refobjid AND a.attnum = d.refobjsubid
  WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid AND d.refclassid = 'pg_class'::regclass AND d.deptype IN ('a', 'i')
- AND s.seqtypid = a.atttypid
+ AND (s.seqtypid = a.atttypid OR (d.deptype = 'a' AND a.attidentity = ''
+      AND s.seqtypid = 'int8'::regtype AND a.atttypid IN ('int2'::regtype, 'int4'::regtype)))
+ -- Legacy serial sequences can retain bigint storage with the owning column's standard bounds.
+ AND s.seqmax = CASE a.atttypid WHEN 'int2'::regtype THEN 32767 WHEN 'int4'::regtype THEN 2147483647 ELSE 9223372036854775807 END
  AND (a.attidentity <> '' OR EXISTS (SELECT 1 FROM pg_attrdef ad JOIN pg_depend dd ON dd.classid = 'pg_attrdef'::regclass AND dd.objid = ad.oid
  AND dd.refclassid = 'pg_class'::regclass AND dd.refobjid = c.oid WHERE ad.adrelid = a.attrelid AND ad.adnum = a.attnum)))
  OR c.relpersistence <> 'p' OR c.reloptions IS NOT NULL OR c.reltablespace <> 0
- OR s.seqstart <> 1 OR s.seqincrement <> 1 OR s.seqmin <> 1 OR s.seqcache <> 1 OR s.seqcycle
- OR s.seqmax <> CASE s.seqtypid WHEN 'int2'::regtype THEN 32767 WHEN 'int4'::regtype THEN 2147483647 ELSE 9223372036854775807 END)
+ OR s.seqstart <> 1 OR s.seqincrement <> 1 OR s.seqmin <> 1 OR s.seqcache <> 1 OR s.seqcycle)
 SQL,
             <<<'SQL'
 SELECT n.nspname||'.'||c.relname||'.'||a.attname AS object, 'unowned_or_external_sequence_default' AS reason,
