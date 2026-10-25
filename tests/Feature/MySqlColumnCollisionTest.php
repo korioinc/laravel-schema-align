@@ -42,7 +42,7 @@ it('excludes case-colliding MySQL columns from plans while applying unrelated sa
         ->and(fn () => $f->align->pin($comparison, [$operations[$desiredName]['id']]))->toThrow(RuntimeException::class)
         ->and($f->fingerprint())->toBe($baseline);
 
-    $plan = $f->align->pin($comparison, ['all-safe']);
+    $plan = $f->align->pin($comparison, ['all-supported']);
     expect($f->fingerprint())->toBe($baseline);
     $f->align->apply($plan['id'], $plan['signature']);
     $f->align->apply($plan['id'], $plan['signature']);
@@ -70,7 +70,7 @@ it('pins and applies distinct MySQL sharp S identifiers without changing existin
     expect($comparison['errors'])->toBe([]);
     $operations = array_column($comparison['differences'], null, 'name');
     expect($operations['ẞ']['automatic'])->toBeTrue();
-    $plan = $f->align->pin($comparison, ['all-safe']);
+    $plan = $f->align->pin($comparison, ['all-supported']);
     $f->align->apply($plan['id'], $plan['signature']);
     $f->align->apply($plan['id'], $plan['signature']);
 

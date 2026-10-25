@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Korioinc\SchemaAlign\Console;
 
 use Illuminate\Console\Command;
+use Korioinc\SchemaAlign\Planning\Operation;
 use RuntimeException;
 use Symfony\Component\Console\Formatter\OutputFormatter;
 
@@ -39,7 +40,12 @@ final class PlanPreview
         if (! is_array($operations) || $operations === []) {
             throw new RuntimeException('The signed plan contains no operations to review.');
         }
-        $command->line('Changes: '.count($operations).' automatic operation(s)');
+        $automatic = count(array_filter($operations, static fn (array $operation): bool => $operation['automatic']));
+        $command->line('Changes: '.count($operations).' selected / '.$automatic.' automatic / '.(count($operations) - $automatic).' column removal(s)');
+
+        if (Operation::hasColumnDrops($operations)) {
+            $command->warn('Column removal deletes stored values. Apply requires --allow-drop-columns in addition to normal approval.');
+        }
         foreach ($operations as $index => $operation) {
             $command->line(($index + 1).'. '.self::plain(($operation['kind'] ?? '').' '.($operation['table'] ?? '').' '.($operation['name'] ?? '')));
             $command->line('   '.self::plain((string) ($operation['id'] ?? '')));
@@ -47,7 +53,23 @@ final class PlanPreview
                 $command->line('   '.self::plain($sql));
             }
         }
+        self::showDeferred($command, $plan);
         $command->newLine();
+    }
+
+    /** @param array<string, mixed> $plan */
+    public static function showDeferred(Command $command, array $plan): void
+    {
+        $deferred = $plan['deferred_changes'] ?? [];
+
+        if ($deferred === []) {
+            return;
+        }
+        $command->warn('Changes outside this plan: '.count($deferred).' (not executed)');
+        foreach ($deferred as $change) {
+            $command->line('  '.self::plain($change['kind'].' '.$change['table'].'.'.$change['name']));
+            $command->line('    '.self::plain($change['reason'] ?? 'Not selected.'));
+        }
     }
 
     private static function plain(string $value): string

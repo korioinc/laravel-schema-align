@@ -58,7 +58,7 @@ it('leaves occupied sequence names for manual review while applying independent 
         $comparison['binding'] = TargetConnection::binding(
             config('database.connections.schema_align_testing'), 'isolated-tests', app()->environment(),
         );
-        $plan = $fixture->align->pin($comparison, ['all-safe']);
+        $plan = $fixture->align->pin($comparison, ['all-supported']);
         $fixture->align->apply($plan['id'], $plan['signature']);
         $fixture->pdo->exec("UPDATE {$q}.sample_items SET note = 'Safe changes committed' WHERE id = 1");
         $fixture->pdo->exec("INSERT INTO {$q}.{$owner} (migration, batch) VALUES ('after_alignment', 2)");

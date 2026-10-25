@@ -59,7 +59,7 @@ return new class extends \Illuminate\Database\Migrations\Migration {
 PHP);
         $before = $fixture->fingerprint();
         $namespace = $driver === 'pgsql' ? $fixture->schema : '@database';
-        $plan = $fixture->align->plan(['all-safe']);
+        $plan = $fixture->align->plan(['all-supported']);
 
         expect(array_column($plan['operations'], 'table'))->toContain($namespace.'.report_batches')
             ->not->toContain($namespace.'.events', $namespace.'.batches', $namespace.'.report_events')
@@ -145,7 +145,7 @@ it('rejects named replay connections outside the selected target before producin
             '<?php return new class extends \\Illuminate\\Database\\Migrations\\Migration { public function up(): void { \\Illuminate\\Support\\Facades\\Schema::connection('.var_export($name, true).')->create("reporting_records", function ($table): void { $table->integer("id"); }); } };');
         $before = $fixture->fingerprint();
 
-        expect(fn () => $fixture->align->plan(['all-safe']))->toThrow(RuntimeException::class, 'unsupported_replay_connection')
+        expect(fn () => $fixture->align->plan(['all-supported']))->toThrow(RuntimeException::class, 'unsupported_replay_connection')
             ->and($fixture->fingerprint())->toBe($before);
     } finally {
         $fixture->close();
@@ -188,7 +188,7 @@ return new class extends \Illuminate\Database\Migrations\Migration {
 };
 PHP);
         $before = $fixture->fingerprint();
-        $plan = $fixture->align->plan(['all-safe']);
+        $plan = $fixture->align->plan(['all-supported']);
         expect($fixture->fingerprint())->toBe($before);
         $fixture->align->apply($plan['id'], $plan['signature']);
         expect($fixture->align->diff()['differences'])->toBe([]);

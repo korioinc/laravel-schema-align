@@ -72,7 +72,7 @@ it('applies indexes with only their actual column prerequisites and preserves da
         if ($newKey) {
             expect(fn () => $fixture->align->pin($comparison, [$index['id']]))->toThrow(RuntimeException::class);
         }
-        $plan = $fixture->align->pin($comparison, $selection === 'all-safe' ? ['all-safe'] : [$index['id']]);
+        $plan = $fixture->align->pin($comparison, $selection === 'all-supported' ? ['all-supported'] : [$index['id']]);
         $fixture->align->apply($plan['id'], $plan['signature']);
         $fixture->align->apply($plan['id'], $plan['signature']);
         $applied = $catalog->inspect();
@@ -88,7 +88,7 @@ it('applies indexes with only their actual column prerequisites and preserves da
         $fixture->close();
     }
 })->with(['pgsql', 'mysql'])->with([
-    'existing key with all-safe' => [false, 'all-safe'],
+    'existing key with all-supported' => [false, 'all-supported'],
     'existing key with explicit selection' => [false, 'index'],
-    'new key with all-safe' => [true, 'all-safe'],
+    'new key with all-supported' => [true, 'all-supported'],
 ]);

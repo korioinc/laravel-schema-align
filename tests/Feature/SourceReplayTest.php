@@ -44,7 +44,7 @@ return new class extends \Illuminate\Database\Migrations\Migration {
 };
 PHP);
         $before = $fixture->fingerprint();
-        $plan = $fixture->align->plan(['all-safe']);
+        $plan = $fixture->align->plan(['all-supported']);
 
         expect($fixture->fingerprint())->toBe($before)
             ->and(file_get_contents($log))->toBe('Original application log')
@@ -76,7 +76,7 @@ it('refuses a plan when installed migration inputs change during replay', functi
             '<?php return new class extends \\Illuminate\\Database\\Migrations\\Migration { public function up(): void { '.$operation.' } };');
         $before = $fixture->fingerprint();
 
-        expect(fn () => $fixture->align->plan(['all-safe']))->toThrow(RuntimeException::class)
+        expect(fn () => $fixture->align->plan(['all-supported']))->toThrow(RuntimeException::class)
             ->and($fixture->fingerprint())->toBe($before)
             ->and($fixture->recordName())->toBe('Sample record A');
     } finally {
@@ -95,7 +95,7 @@ it('refuses ambiguous duplicate migration names without changing the original da
         copy($fixture->directory.'/database/migrations/'.$name, $fixture->directory.'/app/provider-migrations/'.$name);
         $before = $fixture->fingerprint();
 
-        expect(fn () => $fixture->align->plan(['all-safe']))->toThrow(RuntimeException::class)
+        expect(fn () => $fixture->align->plan(['all-supported']))->toThrow(RuntimeException::class)
             ->and($fixture->fingerprint())->toBe($before)
             ->and($fixture->recordName())->toBe('Sample record A');
     } finally {
@@ -142,7 +142,7 @@ return new class extends \Illuminate\Database\Migrations\Migration {
 PHP);
         $before = $fixture->fingerprint();
         $comparison = $fixture->align->diff();
-        $plan = $fixture->align->plan(['all-safe']);
+        $plan = $fixture->align->plan(['all-supported']);
 
         expect($comparison['desired']['tables'][$fixture->schema.'.sample_records']['columns'])->toHaveKeys(['status', 'translated_note'])
             ->and(array_column($plan['operations'], 'name'))->toContain('translated_note')
@@ -226,7 +226,7 @@ return new class extends \Illuminate\Database\Migrations\Migration {
 };
 PHP);
         $before = $fixture->fingerprint();
-        $plan = $fixture->align->plan(['all-safe']);
+        $plan = $fixture->align->plan(['all-supported']);
 
         expect(array_column($plan['operations'], 'name'))->toContain('storage_note')
             ->and($fixture->fingerprint())->toBe($before);

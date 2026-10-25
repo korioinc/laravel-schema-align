@@ -55,7 +55,7 @@ return new class extends \Illuminate\Database\Migrations\Migration {
 PHP);
         $catalog = new PostgresCatalog($fixture->pdo, $schemas);
         $before = $catalog->inspect()->fingerprint();
-        $plan = $fixture->align->plan(['all-safe']);
+        $plan = $fixture->align->plan(['all-supported']);
         $reportOperations = array_filter($plan['operations'], static fn (array $operation): bool => str_ends_with($operation['table'], '.reports'));
 
         expect($reportOperations)->toBeEmpty()
@@ -103,7 +103,7 @@ PHP);
         $catalog = new PostgresCatalog($fixture->pdo, [$fixture->schema, $outsideSchema]);
         $before = $catalog->inspect()->fingerprint();
 
-        expect(fn () => $fixture->align->plan(['all-safe']))->toThrow(RuntimeException::class)
+        expect(fn () => $fixture->align->plan(['all-supported']))->toThrow(RuntimeException::class)
             ->and($catalog->inspect()->fingerprint())->toBe($before)
             ->and($fixture->pdo->query('SELECT name FROM '.$quotedOutside.'.reports')->fetchAll(PDO::FETCH_COLUMN))->toBe(['Outside report'])
             ->and($fixture->recordName())->toBe('Sample record A');

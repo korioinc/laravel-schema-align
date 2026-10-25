@@ -49,7 +49,7 @@ it('keeps the prefixed migration ledger outside diff and apply while retaining i
             ->and($comparison['desired']['migrationNames'])->not->toBeEmpty()
             ->and($comparison['historical_missing_files'])->toContain('retired_migration')
             ->and($catalog->inspect()->fingerprint())->toBe($before);
-        $plan = $fixture->align->pin($comparison, ['all-safe']);
+        $plan = $fixture->align->pin($comparison, ['all-supported']);
         expect($plan['migration_table'])->toBe($physicalLedger)
             ->and(array_column($plan['operations'], 'table'))->not->toContain($schema.'.'.$physicalLedger);
         $fixture->align->reviewPlan($plan['id']);

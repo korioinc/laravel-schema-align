@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Korioinc\SchemaAlign\Console\Commands;
 
 use Illuminate\Console\Command;
+use Korioinc\SchemaAlign\Planning\Operation;
 use Korioinc\SchemaAlign\SchemaAlign;
 use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -33,6 +34,7 @@ Uses installed application files directly; only worker cache and storage use pri
 Cleanup failures report an exact run ID for schema-align:cleanup.
 
 Default output groups readable changes by table with automatic/manual counts and next steps.
+After a successful comparison, extra tables appear in a red manual-review section at the bottom.
 Use --details for definitions, SQL, migration-history and connection diagnostics.
 Use --json for the compact machine result, or --json --details for complete snapshots.
 Migration replay means local PHP execution in temporary namespaces, not Docker.
@@ -101,7 +103,7 @@ HELP;
                 $this->line(self::plain($table));
             }
             $kind = $difference['kind'];
-            $marker = str_starts_with($kind, 'add_') || str_starts_with($kind, 'create_') ? '+' : (str_starts_with($kind, 'extra_') ? '-' : '~');
+            $marker = str_starts_with($kind, 'add_') || str_starts_with($kind, 'create_') ? '+' : (str_starts_with($kind, 'extra_') || str_starts_with($kind, 'drop_') ? '-' : '~');
             $mode = $difference['automatic'] ? 'automatic' : 'manual';
             $this->line('  '.$marker.' '.self::plain(str_replace('_', ' ', $kind).' '.($difference['name'] ?? '')).' ['.$mode.']');
 
@@ -141,7 +143,7 @@ HELP;
         $this->newLine();
         $this->line('Original database objects were not changed.');
 
-        if (! $failed && $automatic > 0) {
+        if (! $failed && ($automatic > 0 || Operation::hasColumnDrops($differences))) {
             $this->line('Next: php artisan schema-align:plan');
         } elseif (! $failed && $manual > 0) {
             $this->line('Review manual changes before creating a plan.');
@@ -149,6 +151,19 @@ HELP;
 
         if (! $details && $differences !== []) {
             $this->line('Use --details for operation IDs and SQL, or --json for automation.');
+        }
+
+        $extraTables = array_column(array_filter($differences, static fn (array $difference): bool => $difference['kind'] === 'extra_table'), 'table');
+
+        if (! $failed && $extraTables !== []) {
+            $this->newLine();
+            $this->error('Tables absent from current migrations (manual review):');
+            foreach ($extraTables as $extraTable) {
+                $this->error('  - '.self::plain($extraTable));
+            }
+            $this->error('These tables exist only in the current database. Review whether they are still needed.');
+            $this->error('Drop them manually if appropriate. Dropping a table permanently deletes its data.');
+            $this->error('schema-align does not drop tables.');
         }
     }
 

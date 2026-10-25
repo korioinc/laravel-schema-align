@@ -75,7 +75,7 @@ PHP);
                 ->and($differences)->toBeEmpty();
         }
 
-        $plan = $fixture->align->plan(['all-safe']);
+        $plan = $fixture->align->plan(['all-supported']);
         foreach ($tables as $table) {
             expect(array_column($plan['operations'], 'table'))->not->toContain($fixture->schema.'.'.$table)
                 ->and($fixture->pdo->query('SELECT id, occurred_at FROM '.$fixture->quotedSchema.'.'.$table)->fetchAll(PDO::FETCH_ASSOC))->toBe($rows[$table]);
@@ -131,7 +131,7 @@ return new class extends \Illuminate\Database\Migrations\Migration {
 PHP);
         $before = $fixture->fingerprint();
         $comparison = $fixture->align->diff();
-        $plan = $fixture->align->plan(['all-safe']);
+        $plan = $fixture->align->plan(['all-supported']);
 
         foreach (['session_named', 'session_reconnected', 'session_dynamic'] as $table) {
             expect($comparison['desired']['tables'])->toHaveKey('@database.'.$table)
@@ -166,7 +166,7 @@ return new class extends \Illuminate\Database\Migrations\Migration {
 PHP);
         $before = $fixture->fingerprint();
 
-        expect(fn () => $fixture->align->plan(['all-safe']))->toThrow(RuntimeException::class, 'unsupported_replay_session_config')
+        expect(fn () => $fixture->align->plan(['all-supported']))->toThrow(RuntimeException::class, 'unsupported_replay_session_config')
             ->and($fixture->fingerprint())->toBe($before)
             ->and($driver === 'pgsql' ? $fixture->recordName() : $fixture->itemName())
             ->toBe($driver === 'pgsql' ? 'Sample record A' : 'Sample item A');

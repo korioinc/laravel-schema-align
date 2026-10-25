@@ -94,7 +94,7 @@ final class ApplyFixture
             'isolated-tests', $this->app->environment(),
         );
 
-        return $this->align->pin($comparison, ['all-safe']);
+        return $this->align->pin($comparison, ['all-supported']);
     }
 
     public function fingerprint(): string

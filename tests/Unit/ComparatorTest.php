@@ -39,17 +39,6 @@ it('automates nullable additions and quotes identifiers', function (): void {
         ->and($result['differences'][0]['sql'])->toBe(['ALTER TABLE "public"."sample_values" ADD COLUMN "odd""column" text']);
 });
 
-it('never automates destructive drift or required additions', function (): void {
-    $desired = comparatorSnapshot(['public.sample_values' => comparatorTable(['required' => comparatorColumn('text', false)])]);
-    $actual = comparatorSnapshot(['public.sample_values' => comparatorTable(['old' => comparatorColumn()])]);
-    $result = (new SchemaComparator)->compare($desired, $actual);
-    expect($result['differences'])->toHaveCount(2);
-    foreach ($result['differences'] as $difference) {
-        expect($difference['automatic'])->toBeFalse()->and($difference['sql'])->toBe([]);
-    }
-    expect($result['warnings'])->not->toBeEmpty();
-});
-
 it('distinguishes index naming drift from semantic drift', function (): void {
     $desired = comparatorSnapshot(['public.sample_values' => comparatorTable([], ['new_name' => comparatorIndex('new_name')])]);
     $actual = comparatorSnapshot(['public.sample_values' => comparatorTable([], ['old_name' => comparatorIndex('old_name')])]);

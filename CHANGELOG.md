@@ -1,6 +1,27 @@
 # Release Notes
 
-## [Unreleased](https://github.com/korioinc/laravel-schema-align/compare/1.0.2...main)
+## [Unreleased](https://github.com/korioinc/laravel-schema-align/compare/1.0.3...main)
+
+## [1.0.3](https://github.com/korioinc/laravel-schema-align/releases/tag/1.0.3) - 2026-10-25
+
+### Changed
+
+- Default CLI planning selects all supported changes, including eligible PostgreSQL column removals. A pending plan containing removals executes no SQL without `--allow-drop-columns`, even with `--auto-approve` or signature approval.
+- Remove the `all-safe` selection mode. Use explicit operation IDs when selecting only part of a comparison; removal permission is controlled at apply.
+- Removal plans use signed format 2, which older package versions refuse. Ordinary format-1 plans remain readable. Regenerate older plans involving tables with extended statistics because their fingerprints now include a removal blocker.
+
+### Added
+
+- Explicit PostgreSQL column removal through `schema-align:apply --allow-drop-columns` and the PHP API's `allowDropColumns: true` argument, in addition to normal approval.
+- Removal SQL, data-loss warnings and deferred changes in plan/apply output, including JSON refusal details and completed-plan summaries.
+- A red manual-review footer in human-readable diff output for tables absent from current migrations. Table deletion remains manual, and JSON output is unchanged.
+- Dependency checks, `DROP COLUMN ... RESTRICT`, transaction rollback and regressions for populated columns, fixed selections, stale plans and outside-schema dependencies. MySQL column removal remains manual.
+
+### Upgrade
+
+- Update `korioinc/laravel-schema-align` to `1.0.3` in the consuming application.
+- Generate a fresh plan to include removals; the apply option never expands an existing signed plan.
+- To remove approved columns without a confirmation prompt, use `php artisan schema-align:apply --allow-drop-columns --auto-approve`.
 
 ## [1.0.2](https://github.com/korioinc/laravel-schema-align/releases/tag/1.0.2) - 2026-10-25
 

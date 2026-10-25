@@ -76,7 +76,8 @@ SQL) as $sequence) {
             $platform['excluded_relations'] = [];
             $ledgerFound = false;
             foreach ($this->scoped(<<<'SQL'
-SELECT c.oid::text AS oid, n.nspname AS schema, c.relname AS name, c.relkind
+SELECT c.oid::text AS oid, n.nspname AS schema, c.relname AS name, c.relkind,
+       EXISTS (SELECT 1 FROM pg_statistic_ext s WHERE s.stxrelid = c.oid) AS has_extended_statistics
 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE __SCOPE__ AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
 ORDER BY n.nspname, c.relname
@@ -121,6 +122,11 @@ SQL, ['oid' => $relation['oid']]) as $index) {
                     'constraints' => [],
                     'indexes' => [],
                 ];
+
+                if (self::boolean($relation['has_extended_statistics'])) {
+                    // DROP COLUMN can silently remove statistics, including those in another schema.
+                    $tables[$key]['drop_column_blockers'] = ['extended_statistics'];
+                }
             }
             foreach (array_chunk($tableOids, 100, true) as $group) {
                 $oids = array_values($group);

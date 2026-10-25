@@ -57,7 +57,7 @@ it('creates a missing table with named not null, primary and unique keys and an 
     expect($comparison['errors'])->toBe([])
         ->and(array_column($comparison['differences'], 'kind'))->toContain('create_table', 'add_constraint', 'create_index')
         ->and(array_unique(array_column($comparison['differences'], 'automatic')))->toBe([true]);
-    $plan = $fixture->align->pin($comparison, ['all-safe']);
+    $plan = $fixture->align->pin($comparison, ['all-supported']);
     $fixture->align->apply($plan['id'], $plan['signature']);
 
     expect(postgresAcceptanceComparison($fixture, $desired)['differences'])->toBe([])
@@ -87,7 +87,7 @@ it('applies standalone index and unique constraint name changes and becomes clea
     $comparison = postgresAcceptanceComparison($fixture, $desired);
     expect($comparison['errors'])->toBe([])
         ->and(array_column($comparison['differences'], 'kind'))->toBe(['rename_constraint', 'rename_index']);
-    $plan = $fixture->align->pin($comparison, ['all-safe']);
+    $plan = $fixture->align->pin($comparison, ['all-supported']);
     $fixture->align->apply($plan['id'], $plan['signature']);
     expect(postgresAcceptanceComparison($fixture, $desired)['differences'])->toBe([])
         ->and($fixture->itemName())->toBe('Sample item A');
@@ -107,7 +107,7 @@ it('keeps a unique constraint distinct from a standalone unique index', function
     foreach ($comparison['differences'] as $difference) {
         expect($difference['automatic'])->toBeFalse()->and($difference['sql'])->toBe([]);
     }
-    expect(fn () => $fixture->align->pin($comparison, ['all-safe']))->toThrow(RuntimeException::class)
+    expect(fn () => $fixture->align->pin($comparison, ['all-supported']))->toThrow(RuntimeException::class)
         ->and($fixture->itemName())->toBe('Sample item A');
 });
 
@@ -131,7 +131,7 @@ it('commits a replayed index in a dollar namespace without a false checkpoint mi
             config('database.connections.schema_align_testing'), 'isolated-tests', app()->environment(),
         );
         config(['schema-align.schemas' => [$schema]]);
-        $plan = $fixture->align->pin($comparison, ['all-safe']);
+        $plan = $fixture->align->pin($comparison, ['all-supported']);
         $fixture->align->apply($plan['id'], $plan['signature']);
 
         expect((new PostgresCatalog($fixture->pdo, [$schema]))->inspect()->fingerprint())->toBe($desired->fingerprint())
@@ -150,7 +150,7 @@ it('blocks pinning when an unsupported view makes the comparison incomplete', fu
     $fixture->pdo->exec('CREATE VIEW '.$q.'.sample_item_view AS SELECT id FROM '.$q.'.sample_items');
     $comparison = postgresAcceptanceComparison($fixture, $desired);
     expect($comparison['errors'])->not->toBe([]);
-    expect(fn () => $fixture->align->pin($comparison, ['all-safe']))->toThrow(RuntimeException::class, 'Incomplete comparison')
+    expect(fn () => $fixture->align->pin($comparison, ['all-supported']))->toThrow(RuntimeException::class, 'Incomplete comparison')
         ->and(glob($fixture->directory.'/*.plan.json') ?: [])->toBe([])
         ->and($fixture->itemName())->toBe('Sample item A');
 });
@@ -180,7 +180,7 @@ it('reports meaningful varchar numeric timestamp precision and default drift for
         expect($difference['kind'])->toBe('change_column')
             ->and($difference['automatic'])->toBeFalse()->and($difference['sql'])->toBe([]);
     }
-    expect(fn () => $fixture->align->pin($comparison, ['all-safe']))->toThrow(RuntimeException::class);
+    expect(fn () => $fixture->align->pin($comparison, ['all-supported']))->toThrow(RuntimeException::class);
 });
 
 it('requires manual mapping for missing required and extra columns without destructive SQL', function (): void {
@@ -197,7 +197,7 @@ it('requires manual mapping for missing required and extra columns without destr
     foreach ($comparison['differences'] as $difference) {
         expect($difference['automatic'])->toBeFalse()->and($difference['sql'])->toBe([]);
     }
-    expect(fn () => $fixture->align->pin($comparison, ['all-safe']))->toThrow(RuntimeException::class)
+    expect(fn () => $fixture->align->pin($comparison, ['all-supported']))->toThrow(RuntimeException::class)
         ->and($fixture->pdo->query('SELECT legacy_name FROM '.$q.'.column_mapping')->fetchColumn())->toBe('Preserve this legacy value')
         ->and($fixture->itemName())->toBe('Sample item A');
 });
@@ -213,7 +213,7 @@ it('applies a nullable column before its dependent index and preserves existing 
     $comparison = postgresAcceptanceComparison($fixture, $desired);
     expect($comparison['errors'])->toBe([])
         ->and(array_column($comparison['differences'], 'kind'))->toBe(['add_column', 'create_index']);
-    $plan = $fixture->align->pin($comparison, ['all-safe']);
+    $plan = $fixture->align->pin($comparison, ['all-supported']);
     $fixture->align->apply($plan['id'], $plan['signature']);
     expect(postgresAcceptanceComparison($fixture, $desired)['differences'])->toBe([])
         ->and($fixture->itemName())->toBe('Sample item A')

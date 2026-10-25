@@ -7,6 +7,7 @@ namespace Korioinc\SchemaAlign\Console\Commands;
 use Illuminate\Console\Command;
 use InvalidArgumentException;
 use Korioinc\SchemaAlign\Console\PlanPreview;
+use Korioinc\SchemaAlign\Planning\Operation;
 use Korioinc\SchemaAlign\SchemaAlign;
 use RuntimeException;
 use Symfony\Component\Console\Formatter\OutputFormatter;
@@ -15,14 +16,14 @@ use Throwable;
 
 final class ApplyCommand extends Command
 {
-    protected $signature = 'schema-align:apply {plan? : Optional saved plan ID; defaults to the latest signed plan} {--auto-approve : Explicitly apply without an interactive confirmation} {--approve= : Legacy exact signature approval} {--recover : Resume only an independently verified baseline or checkpoint} {--status : Read a saved execution status without connecting to the database} {--timeout=0 : PostgreSQL statement execution limit in seconds; 0 is unlimited and required for MySQL DDL} {--json : Emit machine-readable output}';
+    protected $signature = 'schema-align:apply {plan? : Optional saved plan ID; defaults to the latest signed plan} {--auto-approve : Explicitly apply without an interactive confirmation} {--approve= : Legacy exact signature approval} {--allow-drop-columns : Permit reviewed PostgreSQL column removals and their data loss} {--recover : Resume only an independently verified baseline or checkpoint} {--status : Read a saved execution status without connecting to the database} {--timeout=0 : PostgreSQL statement execution limit in seconds; 0 is unlimited and required for MySQL DDL} {--json : Emit machine-readable output}';
 
     protected $description = 'Review the latest plan and confirm application, or inspect its execution status';
 
     protected $help = <<<'HELP'
 Application command. This can change original database objects.
 Run schema-align:plan, then schema-align:apply and enter exactly yes to confirm.
-No plan ID or signature copying is needed. If no plan exists, apply first creates an all-safe plan.
+No plan ID or signature copying is needed. If no plan exists, apply first creates an all-supported plan.
 A saved plan is never silently regenerated when stale, invalid or bound to another target.
 Before showing SQL, apply verifies the plan against the live database.
 An already-applied plan exits without SQL, confirmation or replay.
@@ -31,6 +32,10 @@ Cleanup refusal reports applied_cleanup_blocked; committed original changes are 
 Run schema-align:plan after changing migrations; saved plans are not current-source comparisons.
 
 Use --auto-approve for explicitly approved automation, including --no-interaction.
+PostgreSQL column removals also require --allow-drop-columns; normal confirmation or --auto-approve alone never permits them.
+Without that option, a pending plan containing removals is shown but no original SQL is executed.
+The option permits only removals already selected in the signed plan. Use plan again to change its selection.
+Unsupported or unselected changes remain visible and are not executed. MySQL column removal stays manual.
 Legacy PLAN_ID --approve=SIGNATURE remains supported. Approval modes cannot be combined.
 --status requires a saved plan and never generates one or connects to the database.
 --recover resumes only an approved verified baseline or MySQL checkpoint.
@@ -45,11 +50,14 @@ HELP;
 
     public function handle(SchemaAlign $align): int
     {
+        $preview = null;
+
         try {
             $id = $this->input->getArgument('plan');
             $approval = $this->input->getOption('approve');
             $auto = (bool) $this->option('auto-approve');
             $recover = (bool) $this->option('recover');
+            $allowDropColumns = (bool) $this->option('allow-drop-columns');
 
             if (($id !== null && ! is_string($id)) || ($approval !== null && ! is_string($approval))) {
                 throw new InvalidArgumentException('Plan ID and approval must be strings.');
@@ -60,8 +68,8 @@ HELP;
             }
 
             if ($this->option('status')) {
-                if ($auto || $approval !== null || $recover) {
-                    throw new InvalidArgumentException('--status cannot be combined with approval or recovery.');
+                if ($auto || $approval !== null || $recover || $allowDropColumns) {
+                    throw new InvalidArgumentException('--status cannot be combined with approval, recovery or --allow-drop-columns.');
                 }
                 $store = $align->store();
                 $plan = $id === null ? $store->latest() : $store->load($id);
@@ -99,7 +107,7 @@ HELP;
                 if ($needsApproval) {
                     throw new RuntimeException('Interactive confirmation is required. Use --auto-approve for automation.');
                 }
-                $plan = $align->plan(['all-safe']);
+                $plan = $align->plan(['all-supported']);
             }
 
             if (! is_string($plan['id'] ?? null) || ! is_string($plan['signature'] ?? null)) {
@@ -108,6 +116,10 @@ HELP;
 
             if (($plan['engine'] ?? 'pgsql') === 'mysql' && $statementTimeout !== 0) {
                 throw new InvalidArgumentException('MySQL DDL has no statement execution timeout. Use --timeout=0.');
+            }
+
+            if (($plan['engine'] ?? 'pgsql') === 'mysql' && $allowDropColumns) {
+                throw new InvalidArgumentException('--allow-drop-columns is supported only for PostgreSQL. MySQL column removal requires manual review.');
             }
 
             if ($approval !== null && ! hash_equals($plan['signature'], $approval)) {
@@ -121,6 +133,7 @@ HELP;
 
             if ($review['status'] === 'already_applied') {
                 $result = $align->finishApply($plan['id'], $plan['signature']);
+                $result['deferred_changes'] = $plan['deferred_changes'] ?? [];
                 $blocked = $result['status'] === 'applied_cleanup_blocked';
 
                 if ($this->option('json')) {
@@ -128,6 +141,7 @@ HELP;
                     $this->output->writeln(json_encode($result, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR), OutputInterface::OUTPUT_RAW);
                 } else {
                     $this->info('Already applied. Verified against the current database; no original SQL was executed.');
+                    PlanPreview::showDeferred($this, $plan);
                     $this->showCleanup($result['cleanup']);
                     $this->line('Run php artisan schema-align:plan to compare new migration changes.');
                 }
@@ -135,18 +149,19 @@ HELP;
                 return $blocked ? 1 : 0;
             }
 
-            if ($needsApproval) {
-                throw new RuntimeException('Interactive confirmation is required. Use --auto-approve for automation.');
-            }
+            $preview = $plan;
+            $preview['operations'] = array_slice($plan['operations'], $review['completed_operations']);
 
             if (! $this->option('json')) {
-                $preview = $plan;
-                $preview['operations'] = array_slice($plan['operations'], $review['completed_operations']);
-
                 if ($review['completed_operations'] > 0) {
                     $this->line('Recovery: skipping '.$review['completed_operations'].' verified completed operation(s).');
                 }
                 PlanPreview::show($this, $preview);
+            }
+            Operation::requireColumnDropPermission($preview['operations'], $allowDropColumns);
+
+            if ($needsApproval) {
+                throw new RuntimeException('Interactive confirmation is required. Use --auto-approve for automation.');
             }
 
             if ($approval === null && ! $auto) {
@@ -159,7 +174,8 @@ HELP;
                 }
             }
             // Pin the displayed identity/signature even if another process publishes a newer plan.
-            $result = $align->apply($plan['id'], $plan['signature'], $recover, $statementTimeout);
+            $result = $align->apply($plan['id'], $plan['signature'], $recover, $statementTimeout, $allowDropColumns);
+            $result['deferred_changes'] = $plan['deferred_changes'] ?? [];
 
             if ($this->option('json')) {
                 $this->output->writeln(json_encode($result, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR), OutputInterface::OUTPUT_RAW);
@@ -171,9 +187,14 @@ HELP;
             return $result['status'] === 'applied_cleanup_blocked' ? 1 : 0;
         } catch (Throwable $error) {
             if ($this->option('json')) {
-                $this->output->writeln(json_encode(['status' => 'failure', 'errors' => [$error->getMessage()]], JSON_THROW_ON_ERROR), OutputInterface::OUTPUT_RAW);
+                $failure = ['status' => 'failure', 'errors' => [$error->getMessage()]];
+
+                if ($preview !== null) {
+                    $failure['plan'] = $preview;
+                }
+                $this->output->writeln(json_encode($failure, JSON_THROW_ON_ERROR), OutputInterface::OUTPUT_RAW);
             } else {
-                $this->error($error->getMessage());
+                $this->error(OutputFormatter::escape((string) preg_replace('/[\x00-\x1f\x7f]/', ' ', $error->getMessage())));
             }
 
             return 1;

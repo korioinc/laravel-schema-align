@@ -9,7 +9,8 @@ use RuntimeException;
 
 /**
  * Shared comparator output. Engine comparators own eligibility and SQL; this class owns its structural effect.
- * Manual differences have no SQL. Executable operations add before_hash/after_hash in dependency order.
+ * Unsupported differences have no SQL. Column drops have SQL but require separate execution permission.
+ * Executable operations add before_hash/after_hash in dependency order.
  * IDs bind kind, target, before/after and SQL, not the runtime checkpoint or selection order.
  *
  * @phpstan-type Definition array{
@@ -21,8 +22,35 @@ use RuntimeException;
  */
 final class Operation
 {
+    /** @param Definition $operation */
+    public static function isExecutable(array $operation): bool
+    {
+        return $operation['sql'] !== [] && ($operation['automatic']
+            || ($operation['kind'] === 'drop_column' && is_array($operation['before']) && $operation['after'] === null));
+    }
+
+    /** @param array<array-key, mixed> $operations */
+    public static function hasColumnDrops(array $operations): bool
+    {
+        foreach ($operations as $operation) {
+            if (is_array($operation) && ($operation['kind'] ?? null) === 'drop_column') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param array<array-key, mixed> $operations */
+    public static function requireColumnDropPermission(array $operations, bool $allowDropColumns): void
+    {
+        if (! $allowDropColumns && self::hasColumnDrops($operations)) {
+            throw new RuntimeException('Column removal deletes stored values. Re-run apply with --allow-drop-columns to permit the reviewed removals.');
+        }
+    }
+
     /**
-     * Project only verified additive or semantic-preserving transformations, without executing SQL.
+     * Project only verified transformations, without executing SQL or granting execution permission.
      * A new automatic kind must define its effect here and prove comparison -> projection -> real engine apply.
      * Renames move one object; they do not alter the constraint/index definition supplied by the comparator.
      *
@@ -63,6 +91,17 @@ final class Operation
         $key = $operation['table'];
         $kind = $operation['kind'];
         $after = $operation['after'];
+
+        if ($kind === 'drop_column') {
+            if (! self::isExecutable($operation) || $operation['automatic']
+                || ! isset($tables[$key]['columns'][$operation['name']])
+                || Snapshot::canonical($tables[$key]['columns'][$operation['name']]) !== Snapshot::canonical($operation['before'])) {
+                throw new RuntimeException('Column removal does not match the inspected original column.');
+            }
+            unset($tables[$key]['columns'][$operation['name']]);
+
+            return;
+        }
 
         if (! $operation['automatic'] || $operation['sql'] === [] || ! is_array($after)) {
             throw new RuntimeException('No verified postcondition model for operation '.$kind);

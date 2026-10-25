@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Bootstrap\LoadConfiguration;
 use Korioinc\SchemaAlign\Database\TargetConnection;
 use Korioinc\SchemaAlign\Replay\ReplayNamespace;
 use Korioinc\SchemaAlign\Schema\Catalog\PostgresCatalog;
 use Korioinc\SchemaAlign\Tests\Support\InstalledAppFixture;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Process\Process;
 
 beforeEach(function (): void {
@@ -38,7 +40,7 @@ it('diffs the installed app on first use and replays edited create migrations wi
     }
     expect($fixture->fingerprint())->toBe($before)
         ->and($fixture->recordName())->toBe('Sample record A');
-    $plan = $fixture->align->plan(['all-safe']);
+    $plan = $fixture->align->plan(['all-supported']);
     expect($fixture->fingerprint())->toBe($before);
     $fixture->align->apply($plan['id'], $plan['signature']);
     $clean = $fixture->align->diff();
@@ -62,13 +64,41 @@ it('diffs and applies with a legacy migration ledger sequence without changing t
     $state = $fixture->pdo->query($stateQuery)->fetch(PDO::FETCH_ASSOC);
 
     $comparison = $fixture->align->diff();
-    $plan = $fixture->align->pin($comparison, ['all-safe']);
+    $plan = $fixture->align->pin($comparison, ['all-supported']);
     $fixture->align->apply($plan['id'], $plan['signature']);
     $fixture->pdo->exec("UPDATE {$fixture->quotedSchema}.sample_records SET optional_label = 'Aligned' WHERE id = 1");
 
     expect($fixture->pdo->query('SELECT optional_label FROM '.$fixture->quotedSchema.'.sample_records WHERE id = 1')->fetchColumn())->toBe('Aligned')
         ->and($fixture->pdo->query($ledgerQuery)->fetchAll(PDO::FETCH_ASSOC))->toBe($ledger)
         ->and($fixture->pdo->query($stateQuery)->fetch(PDO::FETCH_ASSOC))->toBe($state)
+        ->and($fixture->recordName())->toBe('Sample record A');
+});
+
+it('requires separate column removal permission for the reviewed default plan', function (): void {
+    $fixture = $this->installedFixture;
+    $table = $fixture->quotedSchema.'.sample_records';
+    $fixture->pdo->exec('ALTER TABLE '.$table.' ADD COLUMN deleted_at timestamp(0) without time zone');
+    $fixture->pdo->exec("UPDATE {$table} SET deleted_at = '2026-01-01 12:00:00' WHERE id = 1");
+    $before = $fixture->fingerprint();
+    $kernel = $fixture->app->make(Kernel::class);
+    $output = new BufferedOutput;
+    $kernel->call('schema-align:plan', [], $output);
+    $plan = $fixture->align->store()->latest();
+    $kernel->call('schema-align:apply', ['--auto-approve' => true], $output);
+
+    expect($fixture->fingerprint())->toBe($before)
+        ->and($fixture->pdo->query('SELECT deleted_at FROM '.$table.' WHERE id = 1')->fetchColumn())->toBe('2026-01-01 12:00:00');
+    expect(fn () => $fixture->align->apply($plan['id'], $plan['signature']))->toThrow(RuntimeException::class)
+        ->and($fixture->fingerprint())->toBe($before);
+
+    $kernel->call('schema-align:apply', ['--auto-approve' => true, '--allow-drop-columns' => true], $output);
+    // A verified completed plan is a no-op without another destructive allowance.
+    $fixture->align->apply($plan['id'], $plan['signature']);
+    $fixture->pdo->exec('ALTER TABLE '.$table.' ADD COLUMN deleted_at text');
+    $fixture->pdo->exec("UPDATE {$table} SET deleted_at = 'Reused after approved removal', optional_label = 'Applied' WHERE id = 1");
+
+    expect($fixture->pdo->query('SELECT deleted_at FROM '.$table.' WHERE id = 1')->fetchColumn())->toBe('Reused after approved removal')
+        ->and($fixture->pdo->query('SELECT optional_label FROM '.$table.' WHERE id = 1')->fetchColumn())->toBe('Applied')
         ->and($fixture->recordName())->toBe('Sample record A');
 });
 
@@ -287,7 +317,7 @@ it('replays numeric PostgreSQL schemas and cleans every allocated namespace', fu
         $config = $f->app->make('config');
         $config->set('schema-align.schemas', [$schema]);
         $config->set('database.connections.installed_target.search_path', $schema);
-        $plan = $f->align->plan(['all-safe']);
+        $plan = $f->align->plan(['all-supported']);
         $applied = $f->align->apply($plan['id'], $plan['signature']);
         expect($applied['status'])->toBe('applied');
         $f->pdo->exec('UPDATE '.$quoted.'.sample_records SET sample_code=\'Retained on retry\' WHERE id=1');
@@ -454,7 +484,7 @@ MIGRATION);
         ->and($f->recordName())->toBe('Sample record A');
 });
 
-it('applies all-safe without a foreign key whose unique index needs manual repair', function (): void {
+it('applies all-supported without a foreign key whose unique index needs manual repair', function (): void {
     $f = $this->installedFixture;
     file_put_contents($f->directory.'/database/migrations/2026_01_08_000000_unique_parent.php', <<<'MIGRATION'
 <?php
@@ -471,7 +501,7 @@ MIGRATION);
     $comparison = $f->align->diff();
     $foreign = array_values(array_filter($comparison['differences'], static fn (array $operation): bool => $operation['name'] === 'sample_links_sample_record_id_foreign'))[0];
     expect($foreign['automatic'])->toBeFalse();
-    $plan = $f->align->pin($comparison, ['all-safe']);
+    $plan = $f->align->pin($comparison, ['all-supported']);
     expect(array_column($plan['operations'], 'id'))->not->toContain($foreign['id']);
     $f->align->apply($plan['id'], $plan['signature']);
     $f->pdo->exec('INSERT INTO '.$f->quotedSchema.'.sample_links (sample_record_id) VALUES (1)');
@@ -492,7 +522,7 @@ it('applies an approved installed-app upgrade as superuser while preserving orig
     $comparison = $fixture->align->diff();
     expect($fixture->fingerprint())->toBe($before)
         ->and($fixture->recordName())->toBe('Sample record A');
-    $plan = $fixture->align->pin($comparison, ['all-safe']);
+    $plan = $fixture->align->pin($comparison, ['all-supported']);
     $fixture->align->apply($plan['id'], $plan['signature']);
     $fixture->pdo->exec("UPDATE {$fixture->quotedSchema}.sample_records SET sample_code = 'approved-admin-upgrade' WHERE id = 1");
 
@@ -503,7 +533,7 @@ it('applies an approved installed-app upgrade as superuser while preserving orig
 
 it('reconciles live completion into the journal without repeating original DDL', function (): void {
     $f = $this->installedFixture;
-    $plan = $f->align->plan(['all-safe']);
+    $plan = $f->align->plan(['all-supported']);
     $f->align->apply($plan['id'], $plan['signature']);
     $f->pdo->exec("UPDATE {$f->quotedSchema}.sample_records SET sample_code='Committed before journal loss' WHERE id=1");
     $f->align->store()->record($plan['id'], ['status' => 'executing']);
@@ -517,7 +547,7 @@ it('reconciles live completion into the journal without repeating original DDL',
 it('removes abandoned replay schemas after successful apply without deleting another binding or original data', function (): void {
     $f = $this->installedFixture;
     $comparison = $f->align->diff();
-    $plan = $f->align->pin($comparison, ['all-safe']);
+    $plan = $f->align->pin($comparison, ['all-supported']);
     $ledger = $f->pdo->query('SELECT migration, batch FROM '.$f->quotedSchema.'.migrations ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
     $manager = new ReplayNamespace($f->pdo, $comparison['binding'], $comparison['actual']['identity'], [$f->schema]);
     $other = new ReplayNamespace($f->pdo, array_replace($comparison['binding'], ['instance' => 'another-installed-app']), $comparison['actual']['identity'], [$f->schema]);
@@ -552,7 +582,7 @@ it('removes abandoned replay schemas after successful apply without deleting ano
 it('retains a live replay session after committed apply and finalizes later without repeating original DDL', function (): void {
     $f = $this->installedFixture;
     $comparison = $f->align->diff();
-    $plan = $f->align->pin($comparison, ['all-safe']);
+    $plan = $f->align->pin($comparison, ['all-supported']);
     $manager = new ReplayNamespace($f->pdo, $comparison['binding'], $comparison['actual']['identity'], [$f->schema]);
     $resource = $manager->create();
     $connection = $f->app->make('config')->get('database.connections.installed_target');

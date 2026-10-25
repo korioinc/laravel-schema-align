@@ -39,7 +39,7 @@ final class SchemaComparator
         foreach ($desired->tables as $table => $after) {
             if (! isset($actual->tables[$table])) {
                 $parts = [];
-                $safe = $after['columns'] !== [];
+                $safe = $after['columns'] !== [] && ($after['drop_column_blockers'] ?? []) === [];
                 $notNull = array_filter($after['constraints'], fn (array $constraint): bool => $constraint['kind'] === 'n');
                 foreach ($notNull as $constraint) {
                     $safe = $safe && ($constraint['validated'] ?? false) && ! ($constraint['no_inherit'] ?? false)
@@ -98,11 +98,20 @@ final class SchemaComparator
                     if ($this->canonical($old) === $this->canonical($column)) {
                         continue;
                     }
+
+                    if ($column === null) {
+                        $reason = $this->columnRemovalReason($actual, $table, $name);
+                        $result['differences'][] = $this->operation($reason === null ? 'drop_column' : 'extra_column', $table, $name, $old, null,
+                            $reason === null ? ['ALTER TABLE '.$this->qualified($before).' DROP COLUMN '.$this->quote($name).' RESTRICT'] : [],
+                            $reason ?? 'Column removal deletes stored values and requires --allow-drop-columns at apply.');
+
+                        continue;
+                    }
                     $safe = $old === null && $column['nullable'] && $this->plainColumn($column);
-                    $kind = $old === null ? 'add_column' : ($column === null ? 'extra_column' : 'change_column');
+                    $kind = $old === null ? 'add_column' : 'change_column';
                     $result['differences'][] = $this->operation($kind, $table, $name, $old, $column,
                         $safe ? ['ALTER TABLE '.$this->qualified($after).' ADD COLUMN '.$this->quote($name).' '.$column['type']] : [],
-                        $safe ? null : 'Column removal, required additions, defaults, type, identity, generated and collation changes require explicit review.');
+                        $safe ? null : 'Required additions, defaults, type, identity, generated and collation changes require explicit review.');
                 }
             }
             foreach (['constraints', 'indexes'] as $collection) {
@@ -409,7 +418,57 @@ final class SchemaComparator
 
         return ['id' => substr(hash('sha256', $this->canonical([$kind, $table, $name, $before, $after, $sql])), 0, 24),
             'kind' => $kind, 'table' => $table, 'name' => $name, 'before' => $before, 'after' => $after,
-            'sql' => $sql, 'automatic' => $sql !== [], 'reason' => $reason, 'transactional' => true, 'dependencies' => $dependencies];
+            'sql' => $sql, 'automatic' => $sql !== [] && $kind !== 'drop_column', 'reason' => $reason, 'transactional' => true, 'dependencies' => $dependencies];
+    }
+
+    private function columnRemovalReason(Snapshot $actual, string $table, string $name): ?string
+    {
+        $before = $actual->tables[$table];
+
+        if (! $this->plainColumn($before['columns'][$name])) {
+            return 'Column removal with defaults, identity, generated expressions or special types requires manual review.';
+        }
+
+        if (($before['drop_column_blockers'] ?? []) !== []) {
+            return 'Column removal on a table with extended statistics requires manual review.';
+        }
+        foreach ($before['columns'] as $column) {
+            if (($column['generated'] ?? '') !== '') {
+                return 'Column removal on a table with generated columns requires manual dependency review.';
+            }
+        }
+        $indexes = array_values($before['indexes']);
+        foreach ($before['constraints'] as $constraint) {
+            if (in_array($name, $constraint['columns'], true)) {
+                return 'Column removal affects a constraint and requires manual review.';
+            }
+
+            if (isset($constraint['index'])) {
+                $indexes[] = $constraint['index'];
+            }
+        }
+        foreach ($indexes as $index) {
+            if (($index['predicate'] ?? null) !== null || in_array($name, $index['include'], true)) {
+                return 'Column removal may affect an index or predicate and requires manual review.';
+            }
+            foreach ($index['keys'] as $key) {
+                if (($key['column'] ?? null) === null || $key['column'] === $name) {
+                    return 'Column removal may affect an index or expression and requires manual review.';
+                }
+            }
+        }
+        foreach ($actual->tables as $other) {
+            foreach ($other['constraints'] as $constraint) {
+                if ($constraint['kind'] === 'f'
+                    && ($constraint['foreign_schema'] ?? null) === $before['schema']
+                    && ($constraint['foreign_table'] ?? null) === $before['name']
+                    && in_array($name, $constraint['foreign_columns'] ?? [], true)) {
+                    return 'Column removal affects a referenced foreign key and requires manual review.';
+                }
+            }
+        }
+
+        return null;
     }
 
     /** @param array<string, mixed> $column */
