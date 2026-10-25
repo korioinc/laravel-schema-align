@@ -52,6 +52,26 @@ it('diffs the installed app on first use and replays edited create migrations wi
     expect($fixture->pdo->query('SELECT id FROM '.$fixture->quotedSchema.'.provider_notes')->fetchColumn())->toBe(42);
 });
 
+it('diffs and applies with a legacy migration ledger sequence without changing the ledger', function (): void {
+    $fixture = $this->installedFixture;
+    $sequence = $fixture->quotedSchema.'.migrations_id_seq';
+    $fixture->pdo->exec('ALTER SEQUENCE '.$sequence.' AS bigint MAXVALUE 2147483647');
+    $ledgerQuery = 'SELECT id, migration, batch FROM '.$fixture->quotedSchema.'.migrations ORDER BY id';
+    $stateQuery = 'SELECT last_value, is_called FROM '.$sequence;
+    $ledger = $fixture->pdo->query($ledgerQuery)->fetchAll(PDO::FETCH_ASSOC);
+    $state = $fixture->pdo->query($stateQuery)->fetch(PDO::FETCH_ASSOC);
+
+    $comparison = $fixture->align->diff();
+    $plan = $fixture->align->pin($comparison, ['all-safe']);
+    $fixture->align->apply($plan['id'], $plan['signature']);
+    $fixture->pdo->exec("UPDATE {$fixture->quotedSchema}.sample_records SET optional_label = 'Aligned' WHERE id = 1");
+
+    expect($fixture->pdo->query('SELECT optional_label FROM '.$fixture->quotedSchema.'.sample_records WHERE id = 1')->fetchColumn())->toBe('Aligned')
+        ->and($fixture->pdo->query($ledgerQuery)->fetchAll(PDO::FETCH_ASSOC))->toBe($ledger)
+        ->and($fixture->pdo->query($stateQuery)->fetch(PDO::FETCH_ASSOC))->toBe($state)
+        ->and($fixture->recordName())->toBe('Sample record A');
+});
+
 it('replays and cleans up with an authoritative stale package classmap', function (): void {
     $fixture = $this->installedFixture;
     $before = $fixture->fingerprint();
