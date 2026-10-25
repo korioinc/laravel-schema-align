@@ -1,6 +1,13 @@
 # Release Notes
 
-## [Unreleased](https://github.com/korioinc/laravel-schema-align/compare/1.0.1...main)
+## [Unreleased](https://github.com/korioinc/laravel-schema-align/compare/1.0.2...main)
+
+## [1.0.2](https://github.com/korioinc/laravel-schema-align/releases/tag/1.0.2) - 2026-10-25
+
+### Fixed
+
+- Accept legacy PostgreSQL serial sequences stored as `bigint` when their ownership, default reference and bounds match the owning `smallint` or `integer` column. This includes Laravel's `migrations_id_seq` and allows schema comparison without changing the original sequence.
+- Retain rejection of missing ownership/default references, custom or oversized bounds and mismatched identity sequence types.
 
 ## [1.0.1](https://github.com/korioinc/laravel-schema-align/releases/tag/1.0.1) - 2026-10-24
 
