@@ -1,6 +1,23 @@
 # Release Notes
 
-## [Unreleased](https://github.com/korioinc/laravel-schema-align/compare/1.0.3...main)
+## [Unreleased](https://github.com/korioinc/laravel-schema-align/compare/1.0.4...main)
+
+## [1.0.4](https://github.com/korioinc/laravel-schema-align/releases/tag/1.0.4) - 2026-10-25
+
+### Highlights
+
+- Migration files remain the desired schema. Supported PostgreSQL type changes and column removals now produce executable signed plans instead of requiring manual SQL.
+- New projection rules use signed format 3, which older package versions reject. Existing format-1 and format-2 plans remain readable.
+
+### New Features
+
+- Plan explicit timestamp precision increases and `character(n)` to `character varying(m)` expansions with `m >= n`, including verified dependent btree index and primary/unique constraint effects.
+- Plan removal of columns with integer literal defaults and validated column-owned PostgreSQL NOT NULL constraints. Apply still requires normal approval and `--allow-drop-columns`.
+
+### Bug Fixes
+
+- Handle the supported type and removal differences that previously left PostgreSQL plans without executable operations. Required missing-column mappings and unsupported transformations remain manual.
+- Reject padded character values before conversion. Preserve unique constraints, exact postcondition checks and transactional rollback.
 
 ## [1.0.3](https://github.com/korioinc/laravel-schema-align/releases/tag/1.0.3) - 2026-10-25
 

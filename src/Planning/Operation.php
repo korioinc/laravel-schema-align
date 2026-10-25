@@ -17,7 +17,8 @@ use RuntimeException;
  *     id: string, kind: string, table: string, name: string,
  *     before: array<string, mixed>|null, after: array<string, mixed>|null,
  *     sql: list<string>, automatic: bool, reason: string|null, transactional: bool,
- *     dependencies: list<string>, old_name?: string, before_hash?: string, after_hash?: string
+ *     dependencies: list<string>, old_name?: string, before_hash?: string, after_hash?: string,
+ *     effects?: list<array{collection: string, name: string, before: array<string, mixed>, after: array<string, mixed>|null}>
  * }
  */
 final class Operation
@@ -27,6 +28,19 @@ final class Operation
     {
         return $operation['sql'] !== [] && ($operation['automatic']
             || ($operation['kind'] === 'drop_column' && is_array($operation['before']) && $operation['after'] === null));
+    }
+
+    /** @param array<array-key, mixed> $operations */
+    public static function planFormat(array $operations): int
+    {
+        foreach ($operations as $operation) {
+            if (is_array($operation) && (($operation['kind'] ?? null) === 'change_column' || ($operation['effects'] ?? []) !== []
+                || (($operation['kind'] ?? null) === 'drop_column' && ($operation['before']['default'] ?? null) !== null))) {
+                return 3;
+            }
+        }
+
+        return self::hasColumnDrops($operations) ? 2 : 1;
     }
 
     /** @param array<array-key, mixed> $operations */
@@ -91,6 +105,19 @@ final class Operation
         $key = $operation['table'];
         $kind = $operation['kind'];
         $after = $operation['after'];
+        foreach ($operation['effects'] ?? [] as $effect) {
+            if (! in_array($effect['collection'], ['constraints', 'indexes'], true)
+                || ! isset($tables[$key][$effect['collection']][$effect['name']])
+                || Snapshot::canonical($tables[$key][$effect['collection']][$effect['name']]) !== Snapshot::canonical($effect['before'])) {
+                throw new RuntimeException('Dependent object does not match the inspected original.');
+            }
+
+            if ($effect['after'] === null) {
+                unset($tables[$key][$effect['collection']][$effect['name']]);
+            } else {
+                $tables[$key][$effect['collection']][$effect['name']] = $effect['after'];
+            }
+        }
 
         if ($kind === 'drop_column') {
             if (! self::isExecutable($operation) || $operation['automatic']
@@ -110,6 +137,12 @@ final class Operation
         if ($kind === 'create_table') {
             $tables[$key] = $after;
         } elseif ($kind === 'add_column') {
+            $tables[$key]['columns'][$operation['name']] = $after;
+        } elseif ($kind === 'change_column') {
+            if (! isset($tables[$key]['columns'][$operation['name']])
+                || Snapshot::canonical($tables[$key]['columns'][$operation['name']]) !== Snapshot::canonical($operation['before'])) {
+                throw new RuntimeException('Type change does not match the inspected original column.');
+            }
             $tables[$key]['columns'][$operation['name']] = $after;
         } elseif ($kind === 'create_index') {
             $tables[$key]['indexes'][$operation['name']] = $after;
