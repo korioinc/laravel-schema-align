@@ -24,7 +24,7 @@ return new class extends \Illuminate\Database\Migrations\Migration {
 MIGRATION);
         $before = $fixture->fingerprint();
         $fixture->align->diff();
-        $plan = $fixture->align->plan(['all-safe']);
+        $plan = $fixture->align->plan(['all-supported']);
         expect($fixture->fingerprint())->toBe($before);
         $fixture->align->apply($plan['id'], $plan['signature']);
         expect($fixture->align->diff()['differences'])->toBe([])
@@ -66,7 +66,7 @@ return new class extends Migration {
 MIGRATION);
         $before = $fixture->fingerprint();
 
-        expect(fn () => $operation === 'diff' ? $fixture->align->diff() : $fixture->align->plan(['all-safe']))
+        expect(fn () => $operation === 'diff' ? $fixture->align->diff() : $fixture->align->plan(['all-supported']))
             ->toThrow(RuntimeException::class);
         $ledger = $fixture->pdo->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');
         $ledger->execute([MySqlInstalledFixture::LEDGER]);
@@ -77,7 +77,7 @@ MIGRATION);
         unset($connection['options'][PDO::MYSQL_ATTR_INIT_COMMAND]);
         $config->set('database.connections.consumer_mysql', $connection);
         unlink($migration);
-        $operation === 'diff' ? $fixture->align->diff() : $fixture->align->plan(['all-safe']);
+        $operation === 'diff' ? $fixture->align->diff() : $fixture->align->plan(['all-supported']);
         $ledger->execute([MySqlInstalledFixture::LEDGER]);
         expect((int) $ledger->fetchColumn())->toBe(0)
             ->and($fixture->fingerprint())->toBe($before)
@@ -118,7 +118,7 @@ it('preserves other databases when replay SQL uses single or multiple DML target
         $failure = null;
 
         try {
-            $fixture->align->plan(['all-safe']);
+            $fixture->align->plan(['all-supported']);
         } catch (RuntimeException $error) {
             $failure = $error;
         }
@@ -152,11 +152,11 @@ return new class extends Migration {
     }
 };
 MIGRATION);
-        expect(fn () => $fixture->align->plan(['all-safe']))->toThrow(RuntimeException::class)
+        expect(fn () => $fixture->align->plan(['all-supported']))->toThrow(RuntimeException::class)
             ->and($fixture->fingerprint())->toBe($before)
             ->and($fixture->itemName())->toBe('Sample item A');
         unlink($fixture->directory.'/database/migrations/2026_01_05_000000_fail.php');
-        $plan = $fixture->align->plan(['all-safe']);
+        $plan = $fixture->align->plan(['all-supported']);
         $fixture->align->apply($plan['id'], $plan['signature']);
         expect($fixture->align->diff()['differences'])->toBe([])
             ->and($fixture->itemName())->toBe('Sample item A');

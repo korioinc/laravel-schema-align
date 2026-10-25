@@ -81,7 +81,7 @@ it('keeps names occupied by excluded migration ledger indexes out of automatic p
         $comparison['desired'] = $desired->toArray();
         $comparison['source'] = ['revision' => 'ledger-collision'];
         $comparison['binding'] = TargetConnection::binding(config('database.connections.schema_align_testing'), 'isolated-tests', app()->environment());
-        $plan = $fixture->align->pin($comparison, ['all-safe']);
+        $plan = $fixture->align->pin($comparison, ['all-supported']);
         expect(array_column($plan['operations'], 'name'))->toContain('note', 'safe_name_index')->not->toContain('sample_values_idx');
         $fixture->align->apply($plan['id'], $plan['signature']);
         $fixture->pdo->exec("UPDATE {$q}.sample_items SET note = 'Safe changes committed' WHERE id = 1");

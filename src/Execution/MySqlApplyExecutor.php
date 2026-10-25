@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Korioinc\SchemaAlign\Execution;
 
 use Korioinc\SchemaAlign\Database\TargetConnection;
+use Korioinc\SchemaAlign\Planning\Operation;
 use Korioinc\SchemaAlign\Planning\PlanStore;
 use Korioinc\SchemaAlign\Schema\Catalog\MySqlCatalog;
 use Korioinc\SchemaAlign\Schema\Snapshot;
@@ -52,8 +53,11 @@ final class MySqlApplyExecutor
      * @param  array<string, mixed>  $binding
      * @return array<string, mixed>
      */
-    public function apply(string $id, string $approval, array $binding, bool $recover = false, int $lockTimeout = 5000, int $statementTimeout = 0): array
+    public function apply(string $id, string $approval, array $binding, bool $recover = false, int $lockTimeout = 5000, int $statementTimeout = 0, bool $allowDropColumns = false): array
     {
+        if ($allowDropColumns) {
+            throw new RuntimeException('--allow-drop-columns is supported only for PostgreSQL. MySQL column removal requires manual review.');
+        }
         $fileLock = $this->store->lock($id);
         $locked = false;
         $started = false;
@@ -171,6 +175,10 @@ final class MySqlApplyExecutor
             throw new RuntimeException('MySQL DDL cannot run inside an existing transaction.');
         }
         $plan = $this->store->load($id);
+
+        if (Operation::hasColumnDrops($plan['operations'])) {
+            throw new RuntimeException('MySQL column removal requires manual review.');
+        }
 
         if (! hash_equals((string) $plan['signature'], $expectedSignature)) {
             throw new RuntimeException('Approval must equal the reviewed plan signature.');

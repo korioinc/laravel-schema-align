@@ -18,7 +18,8 @@ final class PlanStore
     public function save(array $payload): array
     {
         $this->prepare();
-        $payload['format'] = 1;
+        // Older readers must reject plans that require a new destructive execution permission.
+        $payload['format'] = Operation::hasColumnDrops($payload['operations'] ?? []) ? 2 : 1;
         $payload['id'] = bin2hex(random_bytes(16));
         $payload['created_at'] = gmdate(DATE_ATOM);
         $payload['signature'] = hash_hmac('sha256', Snapshot::canonical($payload), $this->key());
@@ -73,7 +74,8 @@ final class PlanStore
             throw new RuntimeException('Plan signature mismatch. Review and issue a new plan; never edit plan SQL.');
         }
 
-        if (($plan['id'] ?? null) !== $id || ($plan['format'] ?? null) !== 1) {
+        if (($plan['id'] ?? null) !== $id || ! in_array($plan['format'] ?? null, [1, 2], true)
+            || ($plan['format'] === 1 && Operation::hasColumnDrops($plan['operations'] ?? []))) {
             throw new RuntimeException('Invalid plan identity or version.');
         }
         $plan['signature'] = $signature;

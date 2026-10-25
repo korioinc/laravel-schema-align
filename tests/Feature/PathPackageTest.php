@@ -51,7 +51,7 @@ it('replays a Composer-installed external path package against the consumer data
         ->and($edited['desired']['tables'][$consumer->schema.'.path_package_notes']['columns'])->toHaveKey('label')
         ->and($consumer->fingerprint())->toBe($before)
         ->and($consumer->recordName())->toBe('Sample record A');
-    $plan = $consumer->align->plan(['all-safe']);
+    $plan = $consumer->align->plan(['all-supported']);
     expect($plan['source']['revision'])->toBe($edited['source']['revision']);
     $consumer->align->apply($plan['id'], $plan['signature']);
     $consumer->pdo->exec('INSERT INTO '.$consumer->quotedSchema.".path_package_notes (id, label) VALUES (42, 'consumer package migration')");
@@ -73,7 +73,7 @@ it('replays installed path packages after Composer omits locked development depe
     $before = $consumer->fingerprint();
 
     $diff = $consumer->align->diff();
-    $plan = $consumer->align->plan(['all-safe']);
+    $plan = $consumer->align->plan(['all-supported']);
 
     expect($diff['desired']['tables'])->toHaveKey($consumer->schema.'.path_package_notes')
         ->and($plan['source']['revision'])->toBe($diff['source']['revision'])
@@ -97,7 +97,7 @@ it('replays a path package installed from a Composer environment-variable URL', 
         $before = $consumer->fingerprint();
 
         $diff = $consumer->align->diff();
-        $plan = $consumer->align->plan(['all-safe']);
+        $plan = $consumer->align->plan(['all-supported']);
 
         expect($diff['desired']['tables'])->toHaveKey($consumer->schema.'.path_package_notes')
             ->and($plan['source']['revision'])->toBe($diff['source']['revision'])

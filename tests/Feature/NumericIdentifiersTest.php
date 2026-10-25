@@ -56,7 +56,7 @@ it('creates PostgreSQL numeric columns and constraints and renames numeric index
         $desired = $catalog->inspect();
         $f->pdo->exec('DROP TABLE '.$f->quotedSchema.'.numeric_names');
         $f->pdo->exec('ALTER INDEX '.$f->quotedSchema.'."2026" RENAME TO "2025"');
-        $plan = $f->align->pin(numericPostgresComparison($f, $desired), ['all-safe']);
+        $plan = $f->align->pin(numericPostgresComparison($f, $desired), ['all-supported']);
         $f->align->apply($plan['id'], $plan['signature']);
         $f->pdo->exec('INSERT INTO '.$f->quotedSchema.'.numeric_names ("2025", "0") VALUES (\'Numeric names work\', 1)');
 
@@ -112,7 +112,7 @@ it('pins and applies MySQL additions and index renames with numeric identifiers'
         $actual = $f->inspect();
         $comparison = [...(new MySqlComparator)->compare($desired, $actual), 'actual' => $actual->toArray(),
             'binding' => $f->binding, 'source' => ['revision' => 'numeric-identifiers']];
-        $plan = $align->pin($comparison, ['all-safe']);
+        $plan = $align->pin($comparison, ['all-supported']);
         $f->apply($plan);
         $f->pdo->exec('SET SESSION transaction_read_only = OFF');
         $f->pdo->exec('UPDATE `'.$f->table.'` SET `0`=\'Safe addition\' WHERE id=1');

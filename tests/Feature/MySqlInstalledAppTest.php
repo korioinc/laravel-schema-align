@@ -42,7 +42,7 @@ it('supports MySQL primary key policies through installed application replay and
 
     try {
         $before = $f->fingerprint();
-        $plan = $f->align->plan(['all-safe']);
+        $plan = $f->align->plan(['all-supported']);
 
         expect($f->fingerprint())->toBe($before)->and($names())->toBe($namesBefore);
         expect($f->align->apply($plan['id'], $plan['signature'])['status'])->toBe('applied')
@@ -64,7 +64,7 @@ it('refuses a saved Unicode MySQL plan after the configured connection charset c
     $f = $this->mysqlInstalledFixture;
     $migration = $f->directory.'/database/migrations/2026_01_01_000000_create_sample_items.php';
     file_put_contents($migration, str_replace("'note'", "'café'", file_get_contents($migration)));
-    $plan = $f->align->plan(['all-safe']);
+    $plan = $f->align->plan(['all-supported']);
     $before = $f->fingerprint();
     $config = $f->app->make('config');
     $config->set('database.connections.consumer_mysql.charset', 'latin1');
@@ -137,7 +137,7 @@ it('replays the consumer MySQL baseline afresh and preserves data through repeat
     $before = $f->fingerprint();
     $ledger = $f->pdo->query('SELECT migration, batch FROM `'.MySqlInstalledFixture::LEDGER.'` ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
     $comparison = $f->align->diff();
-    $plan = $f->align->pin($comparison, ['all-safe']);
+    $plan = $f->align->pin($comparison, ['all-supported']);
     expect($f->fingerprint())->toBe($before);
     $f->align->apply($plan['id'], $plan['signature']);
     $f->pdo->exec('UPDATE `'.MySqlInstalledFixture::TABLE."` SET note = 'retained after duplicate approval' WHERE id = 1");
@@ -147,7 +147,7 @@ it('replays the consumer MySQL baseline afresh and preserves data through repeat
     $f->writeMigration(true);
     $edited = $f->align->diff();
     expect($f->fingerprint())->toBe($after);
-    $editedPlan = $f->align->pin($edited, ['all-safe']);
+    $editedPlan = $f->align->pin($edited, ['all-supported']);
     $f->align->apply($editedPlan['id'], $editedPlan['signature']);
     $f->pdo->exec('UPDATE `'.MySqlInstalledFixture::TABLE."` SET future_note = 'edited create replayed' WHERE id = 1");
     expect($f->pdo->query('SELECT future_note FROM `'.MySqlInstalledFixture::TABLE.'` WHERE id = 1')->fetchColumn())->toBe('edited create replayed')
@@ -174,7 +174,7 @@ it('applies comparison-generated MySQL index renames while preserving indexed re
     expect(fn () => $f->pdo->query($indexedRead))->toThrow(PDOException::class);
 
     $comparison = $f->align->diff();
-    $plan = $f->align->pin($comparison, ['all-safe']);
+    $plan = $f->align->pin($comparison, ['all-supported']);
     $f->align->apply($plan['id'], $plan['signature']);
     $f->align->apply($plan['id'], $plan['signature']);
 
@@ -247,7 +247,7 @@ it('protects original MySQL databases with digit or dollar-prefixed identifiers'
 
 it('reconciles a completed MySQL apply journal without rerunning committed DDL', function (): void {
     $f = $this->mysqlInstalledFixture;
-    $plan = $f->align->plan(['all-safe']);
+    $plan = $f->align->plan(['all-supported']);
     $f->align->apply($plan['id'], $plan['signature']);
     $f->pdo->exec('UPDATE `'.MySqlInstalledFixture::TABLE."` SET note='Committed before journal loss' WHERE id=1");
     $f->align->store()->record($plan['id'], ['status' => 'partial']);
@@ -261,7 +261,7 @@ it('reconciles a completed MySQL apply journal without rerunning committed DDL',
 it('removes abandoned replay databases after successful apply while preserving another binding and original rows', function (): void {
     $f = $this->mysqlInstalledFixture;
     $comparison = $f->align->diff();
-    $plan = $f->align->pin($comparison, ['all-safe']);
+    $plan = $f->align->pin($comparison, ['all-supported']);
     $ledger = $f->pdo->query('SELECT migration, batch FROM `'.MySqlInstalledFixture::LEDGER.'` ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
     $manager = new ReplayNamespace($f->pdo, $comparison['binding'], $comparison['actual']['identity'], ['@database']);
     $other = new ReplayNamespace($f->pdo, array_replace($comparison['binding'], ['instance' => 'another-installed-app']), $comparison['actual']['identity'], ['@database']);

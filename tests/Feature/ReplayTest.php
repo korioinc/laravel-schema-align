@@ -17,7 +17,7 @@ it('compares schemas whose names match Laravel catalog aliases', function (strin
             $config = $fixture->app->make('config');
             $config->set('database.connections.installed_target.search_path', $schema);
             $config->set('schema-align.schemas', [$schema]);
-            $result = $command === 'diff' ? $fixture->align->diff() : $fixture->align->plan(['all-safe']);
+            $result = $command === 'diff' ? $fixture->align->diff() : $fixture->align->plan(['all-supported']);
 
             if ($command === 'diff') {
                 expect($result['desired']['tables'][$schema.'.sample_records']['columns'])->toHaveKey('optional_label');
@@ -107,7 +107,7 @@ it('preserves rows outside the comparison scope when a migration tries to write 
         $failure = null;
 
         try {
-            $command === 'diff' ? $fixture->align->diff() : $fixture->align->plan(['all-safe']);
+            $command === 'diff' ? $fixture->align->diff() : $fixture->align->plan(['all-supported']);
         } catch (RuntimeException $error) {
             $failure = $error;
         }
@@ -137,7 +137,7 @@ it('preserves original sequence state when a migration calls a sequence mutation
         $failure = null;
 
         try {
-            $command === 'diff' ? $fixture->align->diff() : $fixture->align->plan(['all-safe']);
+            $command === 'diff' ? $fixture->align->diff() : $fixture->align->plan(['all-supported']);
         } catch (RuntimeException $error) {
             $failure = $error;
         }
@@ -165,7 +165,7 @@ it('preserves original data when an operator expression tries to redirect subseq
         $failure = null;
 
         try {
-            $command === 'diff' ? $fixture->align->diff() : $fixture->align->plan(['all-safe']);
+            $command === 'diff' ? $fixture->align->diff() : $fixture->align->plan(['all-supported']);
         } catch (RuntimeException $error) {
             $failure = $error;
         }
@@ -234,11 +234,11 @@ return new class extends Migration {
     }
 };
 MIGRATION);
-        expect(fn () => $fixture->align->plan(['all-safe']))->toThrow(RuntimeException::class)
+        expect(fn () => $fixture->align->plan(['all-supported']))->toThrow(RuntimeException::class)
             ->and($fixture->fingerprint())->toBe($before)
             ->and($fixture->recordName())->toBe('Sample record A');
         unlink($fixture->directory.'/database/migrations/2026_01_05_000000_fail.php');
-        $plan = $fixture->align->plan(['all-safe']);
+        $plan = $fixture->align->plan(['all-supported']);
         $fixture->align->apply($plan['id'], $plan['signature']);
         expect($fixture->align->diff()['differences'])->toBe([])
             ->and($fixture->recordName())->toBe('Sample record A');
