@@ -91,28 +91,31 @@ final class SchemaAlign
         }
 
         if ($selection === []) {
-            throw new RuntimeException('Explicit --select operation IDs or --select=all-safe is required.');
+            throw new RuntimeException('Select operation IDs or all-supported.');
         }
         $operations = [];
-        $allSafe = $selection === ['all-safe'];
+        $allSupported = $selection === ['all-supported'];
         foreach ($comparison['differences'] as $difference) {
-            if ($allSafe ? $difference['automatic'] : in_array($difference['id'], $selection, true)) {
-                if (! $difference['automatic'] || ($config['driver'] === 'pgsql' && ! $difference['transactional']) || $difference['sql'] === []
-                    || ($config['driver'] === 'mysql' && ($difference['transactional'] || count($difference['sql']) !== 1))) {
-                    throw new RuntimeException('Selected operation requires manual decisions: '.$difference['id'].' '.($difference['reason'] ?? 'unsupported transformation'));
+            if ($allSupported ? Operation::isExecutable($difference) : in_array($difference['id'], $selection, true)) {
+                if (! Operation::isExecutable($difference) || ($config['driver'] === 'pgsql' && ! $difference['transactional'])
+                    || ($config['driver'] === 'mysql' && ($difference['kind'] === 'drop_column' || $difference['transactional'] || count($difference['sql']) !== 1))) {
+                    throw new RuntimeException('Selected operation requires manual decisions: '.$difference['table'].'.'.$difference['name'].' '.$difference['id'].' '.($difference['reason'] ?? 'unsupported transformation'));
                 }
                 $operations[] = $difference;
             }
         }
 
-        if (! $allSafe && count($operations) !== count(array_unique($selection))) {
+        if (! $allSupported && count($operations) !== count(array_unique($selection))) {
             throw new RuntimeException('Selection contains unknown operation IDs.');
         }
 
         if ($operations === []) {
-            throw new RuntimeException('No automatic operations selected. Review manual requirements.');
+            $details = array_map(static fn (array $difference): string => $difference['table'].'.'.$difference['name'].' ('.$difference['kind'].'): '.($difference['reason'] ?? 'Not selected.'), $comparison['differences']);
+
+            throw new RuntimeException('No executable operations selected. Review these changes: '.implode('; ', $details));
         }
         $ids = array_column($operations, 'id');
+        $deferred = array_values(array_filter($comparison['differences'], static fn (array $difference): bool => ! in_array($difference['id'], $ids, true)));
         foreach ($operations as $operation) {
             foreach ($operation['dependencies'] as $dependency) {
                 if (! in_array($dependency, $ids, true)) {
@@ -151,6 +154,7 @@ final class SchemaAlign
             'schemas' => $config['schemas'], 'migration_table' => $config['migration_table_physical'],
             'source' => $comparison['source'], 'before_hash' => $projection['before_hash'],
             'after_hash' => $projection['after_hash'], 'operations' => $projection['operations'],
+            'deferred_changes' => $deferred,
             'warnings' => $comparison['warnings'],
         ]);
     }
@@ -186,7 +190,7 @@ final class SchemaAlign
     /** @param int|null $statementTimeout PostgreSQL milliseconds; null uses configuration, 0 disables the limit.
      * @return array<string, mixed>
      */
-    public function apply(string $id, string $approval, bool $recover = false, ?int $statementTimeout = null): array
+    public function apply(string $id, string $approval, bool $recover = false, ?int $statementTimeout = null, bool $allowDropColumns = false): array
     {
         $config = $this->configuration();
         $statementTimeout ??= $config['statement_timeout_ms'];
@@ -203,7 +207,7 @@ final class SchemaAlign
         $result = $executor->apply(
             $id, $approval,
             TargetConnection::binding($this->connectionConfig(), $config['target_instance'], $this->app->environment()),
-            $recover, $config['lock_timeout_ms'], $statementTimeout,
+            $recover, $config['lock_timeout_ms'], $statementTimeout, $allowDropColumns,
         );
 
         try {

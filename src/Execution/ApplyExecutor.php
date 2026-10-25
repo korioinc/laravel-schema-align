@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Korioinc\SchemaAlign\Execution;
 
 use Korioinc\SchemaAlign\Database\TargetConnection;
+use Korioinc\SchemaAlign\Planning\Operation;
 use Korioinc\SchemaAlign\Planning\PlanStore;
 use Korioinc\SchemaAlign\Schema\Catalog\PostgresCatalog;
 use Korioinc\SchemaAlign\Schema\Snapshot;
@@ -58,7 +59,7 @@ final class ApplyExecutor
     /** @param array<string, mixed> $binding
      * @return array<string, mixed>
      */
-    public function apply(string $id, string $approval, array $binding, bool $recover = false, int $lockTimeout = 5000, int $statementTimeout = 0): array
+    public function apply(string $id, string $approval, array $binding, bool $recover = false, int $lockTimeout = 5000, int $statementTimeout = 0, bool $allowDropColumns = false): array
     {
         if ($statementTimeout < 0 || $statementTimeout > 2147483647) {
             throw new RuntimeException('PostgreSQL statement timeout must be between 0 and 2147483647 milliseconds.');
@@ -90,6 +91,7 @@ final class ApplyExecutor
                 $this->store->record($id, ['status' => 'divergent', 'fingerprint' => $classification['fingerprint']]);
             }
             $this->requireApplicable($classification);
+            Operation::requireColumnDropPermission($plan['operations'], $allowDropColumns);
             $started = true;
             $this->store->record($id, ['status' => 'executing', 'before_hash' => $actual->fingerprint()]);
             $this->pdo->exec('SET default_transaction_read_only = off');
@@ -287,7 +289,7 @@ final class ApplyExecutor
                 }
             }
             foreach ($plan['operations'] as $operation) {
-                if (! $operation['automatic'] || ! $operation['transactional'] || $operation['sql'] === []) {
+                if (! Operation::isExecutable($operation) || ! $operation['transactional']) {
                     throw new RuntimeException('Manual or nontransactional operation cannot be automatically applied.');
                 }
             }

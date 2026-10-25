@@ -118,7 +118,7 @@ final class MySqlComparator
                         && Snapshot::canonical($this->tableOptions($after)) === Snapshot::canonical($this->tableOptions($before));
                     $result['differences'][] = $this->operation($old === null ? 'add_column' : ($column === null ? 'extra_column' : 'change_column'), $table, $name, $old, $column,
                         $safe ? ['ALTER TABLE '.$this->quote($after['name']).' ADD COLUMN '.$clause] : [],
-                        $safe ? null : ($old === null && ! $nameAvailable ? 'Column name collides with an existing column or lacks server identifier metadata; explicit review is required.' : 'Column changes, required additions, defaults or special attributes require explicit review.'));
+                        $safe ? null : ($column === null ? 'MySQL column removal requires manual dependency review; --allow-drop-columns supports PostgreSQL only.' : ($old === null && ! $nameAvailable ? 'Column name collides with an existing column or lacks server identifier metadata; explicit review is required.' : 'Column changes, required additions, defaults or special attributes require explicit review.')));
                 }
             }
             foreach (['constraints', 'indexes'] as $collection) {

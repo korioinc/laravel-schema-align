@@ -65,7 +65,7 @@ it('rejects pinned MySQL DDL when generated invisible primary keys are enabled a
     $before = $catalog->inspect();
     $comparison = mysqlDdlComparison($f, $desired, $before);
     $comparison['binding'] = TargetConnection::binding($connection, 'isolated-tests', $this->app->environment());
-    $plan = $this->mysqlAlign->pin($comparison, ['all-safe']);
+    $plan = $this->mysqlAlign->pin($comparison, ['all-supported']);
     $journal = $f->store->status($plan['id']);
     $rows = $f->pdo->query('SELECT id, name FROM `'.$f->table.'` ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
     expect($this->mysqlAlign->reviewPlan($plan['id'])['status'])->toBe('pending');
@@ -95,7 +95,7 @@ it('keeps newly created MySQL tables usable across apply and recovery', function
     $f->pdo->exec('DROP TABLE `'.$table.'`');
     $before = $f->inspect();
     $rows = $f->pdo->query('SELECT id, name FROM `'.$f->table.'` ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
-    $plan = $this->mysqlAlign->pin(mysqlDdlComparison($f, $desired, $before), ['all-safe']);
+    $plan = $this->mysqlAlign->pin(mysqlDdlComparison($f, $desired, $before), ['all-supported']);
     $f->apply($plan);
     $f->pdo->exec('SET SESSION transaction_read_only = OFF');
     $f->pdo->exec("INSERT INTO `$table` VALUES (1, 'retained through recovery')");
@@ -114,7 +114,7 @@ it('refuses automatic plans when supported row formats include unsupported table
     $actual = $f->inspect();
     $rows = $f->pdo->query('SELECT id, name FROM `'.$f->table.'` ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
 
-    expect(fn () => $this->mysqlAlign->pin(mysqlDdlComparison($f, $before, $actual), ['all-safe']))->toThrow(RuntimeException::class)
+    expect(fn () => $this->mysqlAlign->pin(mysqlDdlComparison($f, $before, $actual), ['all-supported']))->toThrow(RuntimeException::class)
         ->and($f->inspect()->fingerprint())->toBe($actual->fingerprint())
         ->and($f->pdo->query('SELECT id, name FROM `'.$f->table.'` ORDER BY id')->fetchAll(PDO::FETCH_ASSOC))->toBe($rows);
 });
@@ -164,7 +164,7 @@ it('applies unrelated indexes without disturbing foreign keys or existing rows',
     $f->pdo->exec('CREATE INDEX note_lookup ON `'.$child.'` (note)');
     $desired = $f->inspect();
     $f->pdo->exec('DROP INDEX note_lookup ON `'.$child.'`');
-    $plan = $this->mysqlAlign->pin(mysqlDdlComparison($f, $desired, $before), ['all-safe']);
+    $plan = $this->mysqlAlign->pin(mysqlDdlComparison($f, $desired, $before), ['all-supported']);
     $f->apply($plan);
     $f->store->record($plan['id'], ['status' => 'executing', 'operation_index' => 0]);
     $f->apply($plan, true);

@@ -229,7 +229,7 @@ PHP);
         file_put_contents($providers, str_replace('return [', "require_once dirname(__DIR__).'/app/Providers/TenantBlueprintProvider.php';\nreturn [\\".$namespace.'\\TenantBlueprintProvider::class, ', file_get_contents($providers)));
         $before = $fixture->fingerprint();
 
-        expect(fn () => $fixture->align->plan(['all-safe']))->toThrow(RuntimeException::class, 'unsupported_blueprint_binding')
+        expect(fn () => $fixture->align->plan(['all-supported']))->toThrow(RuntimeException::class, 'unsupported_blueprint_binding')
             ->and($fixture->fingerprint())->toBe($before);
     } finally {
         $fixture->close();
@@ -269,12 +269,12 @@ PHP));
         $before = $fixture->fingerprint();
 
         if ($hook === 'extend') {
-            expect(fn () => $fixture->align->plan(['all-safe']))->toThrow(RuntimeException::class, 'unsupported_blueprint_construction')
+            expect(fn () => $fixture->align->plan(['all-supported']))->toThrow(RuntimeException::class, 'unsupported_blueprint_construction')
                 ->and($fixture->fingerprint())->toBe($before);
 
             return;
         }
-        $plan = $fixture->align->plan(['all-safe']);
+        $plan = $fixture->align->plan(['all-supported']);
         expect($fixture->fingerprint())->toBe($before);
         $fixture->align->apply($plan['id'], $plan['signature']);
         $table = $driver === 'mysql' ? '`'.MySqlInstalledFixture::TABLE.'`' : $fixture->quotedSchema.'.sample_records';

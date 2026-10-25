@@ -132,7 +132,7 @@ describe('explicitly enabled isolated superuser safety', function (): void {
             config()->set('schema-align.schemas', [$this->targetSchema]);
             config()->set('schema-align.plan_directory', $this->targetDirectory);
 
-            return (new SchemaAlign($this->app))->pin($comparison, ['all-safe']);
+            return (new SchemaAlign($this->app))->pin($comparison, ['all-supported']);
         };
     });
 

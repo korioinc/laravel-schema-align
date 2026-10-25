@@ -46,7 +46,7 @@ return new class extends \Illuminate\Database\Migrations\Migration {
 };
 PHP);
     $before = $f->fingerprint();
-    $plan = $f->align->plan(['all-safe']);
+    $plan = $f->align->plan(['all-supported']);
     expect($f->fingerprint())->toBe($before);
     $f->align->apply($plan['id'], $plan['signature']);
     $f->pdo->exec("UPDATE {$f->quotedSchema}.sample_records SET custom_note = 'Package note' WHERE id = 1");
@@ -78,7 +78,7 @@ return new class extends \Illuminate\Database\Migrations\Migration {
 };
 PHP);
     $before = $f->fingerprint();
-    $plan = $f->align->plan(['all-safe']);
+    $plan = $f->align->plan(['all-supported']);
     expect($f->fingerprint())->toBe($before);
     $f->align->apply($plan['id'], $plan['signature']);
     $f->pdo->exec("UPDATE {$f->quotedSchema}.sample_records SET custom_note = 'Relocated note' WHERE id = 1");
