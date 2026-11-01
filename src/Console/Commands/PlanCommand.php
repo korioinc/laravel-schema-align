@@ -7,6 +7,7 @@ namespace Korioinc\SchemaAlign\Console\Commands;
 use Illuminate\Console\Command;
 use InvalidArgumentException;
 use Korioinc\SchemaAlign\Console\PlanPreview;
+use Korioinc\SchemaAlign\Planning\Operation;
 use Korioinc\SchemaAlign\SchemaAlign;
 use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -51,7 +52,8 @@ HELP;
                 $this->output->writeln(json_encode($plan, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), OutputInterface::OUTPUT_RAW);
             } else {
                 PlanPreview::show($this, $plan);
-                $this->info('Plan saved. Run php artisan schema-align:apply to review and confirm.');
+                $allowDropColumns = Operation::hasColumnDrops($plan['operations']) ? ' --allow-drop-columns' : '';
+                $this->info('Plan saved. Run php artisan schema-align:apply '.$plan['id'].$allowDropColumns.' to review and confirm.');
             }
 
             return 0;
