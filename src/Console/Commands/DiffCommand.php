@@ -145,6 +145,11 @@ HELP;
 
         if (! $failed && ($automatic > 0 || Operation::hasColumnDrops($differences))) {
             $this->line('Next: php artisan schema-align:plan');
+
+            if (Operation::hasColumnDrops($differences)) {
+                $this->warn('Column removal deletes stored values. Review the saved plan before applying.');
+                $this->line('After reviewing the plan: php artisan schema-align:apply --allow-drop-columns');
+            }
         } elseif (! $failed && $manual > 0) {
             $this->line('Review manual changes before creating a plan.');
         }
