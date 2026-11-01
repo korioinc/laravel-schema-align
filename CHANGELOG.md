@@ -1,6 +1,14 @@
 # Release Notes
 
-## [Unreleased](https://github.com/korioinc/laravel-schema-align/compare/1.0.4...main)
+## [Unreleased](https://github.com/korioinc/laravel-schema-align/compare/1.0.5...main)
+
+## [1.0.5](https://github.com/korioinc/laravel-schema-align/releases/tag/1.0.5) - 2026-11-01
+
+### Changed
+
+- Show `schema-align:apply --allow-drop-columns` after the plan step in human-readable diff output when supported PostgreSQL column removals are present.
+- Include the saved plan ID in the apply command shown after planning. Add `--allow-drop-columns` only when the selected plan contains removals, not for deferred changes.
+- Keep data-loss warnings, separate execution confirmation and JSON output unchanged.
 
 ## [1.0.4](https://github.com/korioinc/laravel-schema-align/releases/tag/1.0.4) - 2026-10-25
 
